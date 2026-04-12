@@ -421,13 +421,20 @@ def refresh_data(force_redownload: bool = False, dry_run: bool = False) -> dict:
     if not run_all.exists():
         return {"status": "error", "message": f"run_all.py not found at {run_all}"}
 
-    cmd = [sys.executable, str(run_all)]
+    # Use the QuantitativeValue project's own venv if it exists — it has edgartools and its deps
+    qv_venv_python = qv / ".venv" / "Scripts" / "python.exe"
+    python_exe = str(qv_venv_python) if qv_venv_python.exists() else sys.executable
+
+    cmd = [python_exe, str(run_all)]
     if force_redownload:
         cmd.append("--refresh")
 
+    src_dir = str(qv / "src")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = src_dir + os.pathsep + env.get("PYTHONPATH", "")
     start = time.time()
     try:
-        proc = subprocess.run(cmd, cwd=str(qv / "src"), capture_output=False, text=True)
+        proc = subprocess.run(cmd, cwd=src_dir, env=env, capture_output=False, text=True)
         elapsed = time.time() - start
         result["status"] = "success" if proc.returncode == 0 else "failed"
         result["elapsed"] = _fmt_time(int(elapsed))
