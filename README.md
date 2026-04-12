@@ -6,6 +6,8 @@ A public learning journal and working codebase for building a privacy-first, loc
 
 **Goal:** Run a capable LLM locally at zero recurring cost, with Claude API as a fallback for complex reasoning only.
 
+**Required Vibe Check:** https://www.youtube.com/watch?v=vWGQBQU8Vr0
+
 This is not a polished product. It is a documented journey — including the mistakes. If you want to build something similar, start here.
 
 ---
