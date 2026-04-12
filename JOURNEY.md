@@ -105,14 +105,67 @@ Prompt: *"Explain how a transformer neural network works. Be thorough but concis
 
 **Date:** April 12, 2026 | **Status:** 🔄 In Progress
 
-### What was done so far
-- Scaffolded `phase2-tool-use/router.py` — heuristic routing logic with token count thresholds and complexity keyword detection
-- Routing decision is data-backed by Phase 1 benchmark results
+### What was built
 
-### Up next
-- Build SEC Edgar screener tool (pull 10-K filings, extract financial data)
-- Wire router into a unified `enkidu.py` entry point
-- Test on real queries (stock screening, Duke Energy analysis)
+**Routing logic (`phase2-tool-use/router.py`)**
+- Heuristic router that classifies every query as LOCAL (Gemma) or CLOUD (Claude)
+- Signals that push to cloud: prompt length > 500 tokens, complexity keywords (analyze, compare, explain why, etc.), tool requirements
+- Default is LOCAL — biases toward free and private
+- Routing decision carries a reason string and estimated token count, printed before each response
+
+**Unified entry point (`enkidu.py`)**
+- Single REPL loop replacing the separate test scripts from Phase 1
+- Streams from Ollama (local) or Anthropic SDK (cloud) based on routing decision
+- Session stats tracking: queries sent, local vs cloud split, total tokens
+- Slash commands: `/local`, `/cloud`, `/stats`, `/refresh`, `/exit`
+
+**Tool: system_info (`phase2-tool-use/tools/system_info.py`)**
+- Pattern: Python fetches real data → injected as `[SYSTEM CONTEXT]` block → LLM reasons over it
+- Queries `nvidia-smi` for GPU temperature, VRAM, clock speed, power draw
+- Queries `psutil` for CPU % and RAM usage
+- Trigger keywords: "gpu", "vram", "temperature", "cpu", "ram", etc.
+- Before this tool: Gemma would answer hardware questions by hallucinating. After: it reports real live numbers.
+
+**Tool: edgar_screener (`phase2-tool-use/tools/edgar_screener.py`)**
+- Queries the QuantitativeValue processed datasets (1,294 screened stocks, 186K rows of fundamentals)
+- Handles three query types: specific ticker lookup, top-N by value composite, filtered by F-Score/debt
+- Falls back from screened portfolio → full metrics dataset for tickers that didn't pass the screen (e.g., DUK — Duke Energy is a utility, excluded by the quant value methodology)
+- `/refresh` command wipes cached EDGAR JSON files and re-runs the full QuantitativeValue pipeline (~66 min)
+- Refresh shows a time estimate broken down by stage before asking for confirmation
+
+### What broke
+
+**Column names didn't match the actual CSVs.**
+Exploring the data in Windows Explorer showed column names like `overall_rank`, `quality_rank`, `value_rank`. None of those exist in the actual files. Actual columns are `value_composite`, `quality_score`, `p_franchise_power`, `ev_ebit_rank`. Always query the real file rather than trusting UI previews.
+
+**DUK not in the screened portfolio.**
+Duke Energy (DUK) didn't pass the quantitative value screen — utilities are capital-heavy, rate-regulated, and fail the EV/EBIT and debt filters by design. The tool initially returned nothing for DUK. Fix: added a fallback that queries the full `metrics.csv` (all 186K rows) when a ticker isn't in the portfolio, so any public company is accessible.
+
+**Ticker detection was too aggressive.**
+`get_context()` was calling `query.upper().split()` and testing every word against the ticker database. Queries like "what is the **cash** flow" matched `CASH` (a real ticker). "show me **top** 10 stocks" matched `TOP`. "what **ARE** the most undervalued" matched `ARE` (Alexandria Real Estate Equities — also a real ticker). Every common English word that happened to be 2-5 letters was getting looked up.
+
+Fix: only detect tickers if the word is already uppercase in the original query (user deliberately typed `DUK`) or appears as a possessive (`DUK's`). Added a `_NOT_TICKERS` blocklist for English function words that match the pattern: `ARE`, `TOP`, `MOST`, `WILL`, `HAVE`, `WHAT`, `THEY`, etc.
+
+**`run_all.py` failed with `ModuleNotFoundError: No module named 'universe_fixed'`.**
+The QuantitativeValue pipeline's `run_all.py` imports `universe_fixed`, but that file had been moved to `archive/test_files/` at some point. A compiled `.pyc` still existed in `__pycache__` (evidence it used to work), but the source was gone. Fix: copied `universe_fixed.py` back to `src/`.
+
+**`edgartools` and its dependencies weren't installed.**
+The edgar pipeline uses the `edgartools` Python package, which wasn't in any environment. Normally a `pip install` away, but the global Python's `Scripts/` directory had a Windows file-locking issue — pip kept failing with `[WinError 2] .exe -> .exe.deleteme`. Every transitive dependency that included a console script (rich, httpx, markdown-it-py, unidecode...) failed to install.
+
+Fix: created a dedicated `.venv` inside the QuantitativeValue project directory. The venv has its own isolated `Scripts/` folder with no conflicts. `refresh_data()` in edgar_screener.py now detects the QV venv and uses its Python interpreter when launching the pipeline subprocess.
+
+### What was learned
+- The tool injection pattern works cleanly: Python fetches real data → formatted as a `[CONTEXT]` block → prepended to the prompt → LLM reasons over grounded facts instead of hallucinating. Same pattern scales to any external data source.
+- Ticker detection in natural language is genuinely hard. Even a "require uppercase" heuristic isn't enough — `ARE` is both a common English verb and a real REIT ticker (Alexandria Real Estate). Blocklists of function words are necessary.
+- Python subprocess `cwd` is not enough for projects that rely on relative imports — you also need `PYTHONPATH` set to the `src/` directory.
+- When `pip install` fails on Windows due to file locks, creating a fresh venv is cleaner than fighting the global environment. The venv gets its own `Scripts/` with no pre-existing lock conflicts.
+- Always check `.pyc` files in `__pycache__` when debugging missing modules — they're evidence of what *used to* be there before someone archived it.
+
+### Files created
+- `enkidu.py` — main REPL entry point (root of repo)
+- `phase2-tool-use/router.py` — routing logic (LOCAL vs CLOUD)
+- `phase2-tool-use/tools/system_info.py` — hardware context tool
+- `phase2-tool-use/tools/edgar_screener.py` — financial data tool
 
 ---
 

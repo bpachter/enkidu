@@ -25,48 +25,48 @@ try:
     from openrgb import OpenRGBClient
     from openrgb.utils import RGBColor
     _OPENRGB_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"[lighting] openrgb-python not available: {e}")
     _OPENRGB_AVAILABLE = False
+    RGBColor = None
 
 
 # --- Animation config ---
 
-# Amber/orange wave colors — cycles across keyboard LEDs
-_WAVE_COLORS = [
-    RGBColor(255, 80,  0),   # amber-orange
-    RGBColor(255, 30,  0),   # deep red-orange
-    RGBColor(255, 140, 0),   # bright amber
-    RGBColor(200, 20,  0),   # dark red
-    RGBColor(255, 60,  0),   # orange
-]
+_FRAME_DELAY = 0.04   # seconds per frame (~25 fps)
 
-_FRAME_DELAY = 0.05   # seconds per frame (~20 fps)
-_WAVE_SPEED  = 0.4    # wave travel speed (higher = faster)
-
-# Hardware mode to use for zone-less devices during inference
+# Hardware mode for zone-less devices (Dell G Series etc.)
 _HARDWARE_INFERENCE_MODE = "Rainbow Wave"
 _HARDWARE_RESTORE_MODE   = "Static"
-_RESTORE_COLOR           = RGBColor(0, 0, 0)
 
 
 # --- Internal helpers ---
 
-def _lerp_color(a: RGBColor, b: RGBColor, t: float) -> RGBColor:
-    return RGBColor(
-        int(a.red   + (b.red   - a.red)   * t),
-        int(a.green + (b.green - a.green) * t),
-        int(a.blue  + (b.blue  - a.blue)  * t),
-    )
+def _hsv_to_rgb(h: float, s: float, v: float) -> RGBColor:
+    """Convert HSV (h in [0,360], s and v in [0,1]) to RGBColor."""
+    h = h % 360
+    c = v * s
+    x = c * (1 - abs((h / 60) % 2 - 1))
+    m = v - c
+    if   h < 60:  r, g, b = c, x, 0
+    elif h < 120: r, g, b = x, c, 0
+    elif h < 180: r, g, b = 0, c, x
+    elif h < 240: r, g, b = 0, x, c
+    elif h < 300: r, g, b = x, 0, c
+    else:         r, g, b = c, 0, x
+    return RGBColor(int((r + m) * 255), int((g + m) * 255), int((b + m) * 255))
 
 
-def _wave_color(position: float, t: float) -> RGBColor:
-    """Color for one LED at normalized position [0,1] at time t."""
-    phase = (position - t * _WAVE_SPEED) % 1.0
-    n = len(_WAVE_COLORS)
-    idx_f = phase * n
-    idx_a = int(idx_f) % n
-    idx_b = (idx_a + 1) % n
-    return _lerp_color(_WAVE_COLORS[idx_a], _WAVE_COLORS[idx_b], idx_f - int(idx_f))
+def _rainbow_color(position: float, t: float) -> RGBColor:
+    """
+    Full-spectrum rainbow wave that sweeps across the keyboard.
+    position: LED position normalized [0, 1]
+    t:        elapsed time in seconds
+    """
+    wave_cycles = 1.5   # number of full rainbow cycles visible at once
+    speed = 120         # degrees per second — how fast the wave travels
+    hue = (position * 360 * wave_cycles + t * speed) % 360
+    return _hsv_to_rgb(hue, 1.0, 1.0)
 
 
 def _supports_mode(device, mode_name: str) -> bool:
@@ -84,7 +84,8 @@ def _run_animation(stop: threading.Event):
     """Background thread: drives per-LED wave on Direct devices."""
     try:
         client = OpenRGBClient(name="Enkidu")
-    except Exception:
+    except Exception as e:
+        print(f"[lighting] Could not connect to OpenRGB: {e}")
         return
 
     # Separate devices by capability
@@ -106,28 +107,30 @@ def _run_animation(stop: threading.Event):
         t = time.perf_counter() - start
 
         for device in direct_devices:
-            n = len(device.leds)
-            if n == 0:
-                continue
-            colors = [_wave_color(i / n, t) for i in range(n)]
-            try:
-                device.set_colors(colors)
-            except Exception:
-                pass
+            for zone in device.zones:
+                n = len(zone.leds)
+                if n == 0:
+                    continue
+                colors = [_rainbow_color(i / n, t) for i in range(n)]
+                try:
+                    zone.set_colors(colors, fast=True)
+                except Exception:
+                    pass
 
         time.sleep(_FRAME_DELAY)
 
     # Restore everything
+    black = RGBColor(0, 0, 0)
     for device in direct_devices:
         try:
-            device.set_color(_RESTORE_COLOR)
+            device.set_color(black)  # set_color (singular) sends immediately
         except Exception:
             pass
 
     for device in hardware_devices:
         _set_mode(device, _HARDWARE_RESTORE_MODE)
         try:
-            device.set_color(_RESTORE_COLOR)
+            device.set_color(black)
         except Exception:
             pass
 
