@@ -27,7 +27,7 @@ An LLM (Large Language Model) is a trained neural network — billions of mathem
 | **Cost** | Free — you pay only for electricity | Pay per token (input + output) |
 | **Privacy** | Your queries never leave your machine | Queries are sent to Anthropic's servers |
 | **Quality** | Very capable, especially for its size | State-of-the-art reasoning and instruction following |
-| **Speed** | Depends on your GPU (this build: ~40-80 tok/s) | Depends on Anthropic's infrastructure + your network |
+| **Speed** | Depends on your GPU (this build: ~144 tok/s on RTX 4090) | Depends on Anthropic's infrastructure + your network |
 | **Control** | Full — you choose the model, version, and parameters | Limited — you call their API as-is |
 
 **The analogy:** Gemma is like a recipe book you own — you cook the food yourself in your kitchen. Claude is like calling a restaurant — they do the cooking, you pay per meal, and you don't see the kitchen.
@@ -109,7 +109,7 @@ Routing logic (Python)
 | Phase | Goal | Status |
 |-------|------|--------|
 | [Phase 1](./phase1-local-inference/) | Local inference — Gemma 4 26B via Ollama + Open WebUI | ✅ Complete |
-| [Phase 2](./phase2-tool-use/) | Tool use + routing logic (local vs Claude) | ⬜ Not Started |
+| [Phase 2](./phase2-tool-use/) | Tool use + routing logic (local vs Claude) | 🔄 In Progress |
 | [Phase 3](./phase3-agents/) | Agentic orchestration via Discord/CLI | ⬜ Not Started |
 | [Phase 4](./phase4-memory/) | Persistent memory via ChromaDB + SQLite | ⬜ Not Started |
 | Phase 5 | Voice interface (wake word → STT → TTS) | ⬜ Not Started |
