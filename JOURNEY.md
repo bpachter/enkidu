@@ -61,10 +61,10 @@ The goal of this log is to give future builders an honest picture of the process
 
 **`gemma4:latest` is not the big model.** Discovered that running `ollama pull gemma4` without a tag pulls the `latest` tag which maps to `e4b` — a tiny 4.5B edge model. Always specify the tag explicitly: `gemma4:26b`.
 
-### In progress
-- Pulling Gemma 4 26B model into Ollama (~18GB)
-- Setting up Open WebUI
-- Running inference benchmarks
+### Completed
+- Pulled Gemma 4 26B into Ollama (17GB on disk)
+- Confirmed first inference via Ollama HTTP API
+- Ran full benchmark against Claude Opus API
 
 ### What was learned so far
 - WSL2 was already present on Windows 11 — no manual install needed
@@ -79,6 +79,47 @@ The goal of this log is to give future builders an honest picture of the process
 ### Files created
 - `phase1-local-inference/docker-compose.yml` — starts Ollama + Open WebUI together
 - `phase1-local-inference/inference_bench.py` — benchmarks local vs Claude API on the same prompt
+
+### Benchmark results (first run, cold start)
+
+Prompt: *"Explain how a transformer neural network works. Be thorough but concise. Aim for about 200 words."*
+
+| Metric | Gemma 4 26B (local) | Claude Opus 4.6 (cloud) |
+|--------|-------------------|------------------------|
+| Time to first token | 6.36s *(cold start — model loading into VRAM)* | 1.60s |
+| Total time | 8.13s | 10.20s |
+| Tokens generated | 1077 | 315 |
+| Tokens / second | **144 tok/s** | 31 tok/s |
+| Cost | $0 | ~$0.02 |
+
+**Interpretation:**
+- Gemma is faster end-to-end at 144 tok/s vs 31 tok/s. The 6s cold start only happens once per session — the model stays in VRAM afterward.
+- Claude gets to first token faster (1.6s) because Anthropic's infrastructure is always warm. This gap shrinks on warm Gemma calls.
+- Response quality was comparable for this prompt. Gemma was more verbose; Claude was more structured.
+- Conclusion: local inference wins on speed and cost for everyday queries. Cloud is worth it only when response quality is the deciding factor.
+
+### What was learned
+- WSL2 was already present on Windows 11 — no manual install needed
+- Docker Desktop uses WSL2 as its backend by default on Windows 11; this is what enables GPU passthrough to Linux containers
+- The `-v ollama:/root/.ollama` volume flag is critical — without it, the 18GB model download disappears when the container restarts
+- `--gpus all` passes the RTX 4090 through to the container via the NVIDIA Container Toolkit (bundled with Docker Desktop)
+- Gemma 4 26B is a **Mixture of Experts (MoE)** model: 25.2B total parameters, only 3.8B active per inference. Runs fast like a 4B model, quality of a much larger one. 256K token context window.
+- Gemma 4 26B uses ~18GB VRAM — more than the ~16GB originally estimated for Gemma 3 27B Q4. Still fits in the 4090's 24GB with ~6GB headroom.
+- Docker Compose is cleaner than raw `docker run` for multi-container setups — services communicate by name, one command starts the whole stack.
+- Ollama's streaming API returns NDJSON — each line is a JSON object. The final chunk (`done: true`) contains built-in timing stats (nanoseconds) including `eval_count` (tokens generated) and `eval_duration`, making it easy to calculate tokens/sec without manual measurement.
+- The `.venv` activation in PowerShell doesn't always override `python` to point at the venv — use `.venv/Scripts/python.exe` directly when in doubt.
+
+### Files created
+- `phase1-local-inference/docker-compose.yml` — starts Ollama + Open WebUI together
+- `phase1-local-inference/inference_bench.py` — benchmarks local vs Claude API on the same prompt
+
+---
+
+## Phase 2 — Tool Use and Routing Logic
+
+**Date:** TBD (next session)
+
+*See [phase2-tool-use/](./phase2-tool-use/) for work in progress.*
 
 ---
 
