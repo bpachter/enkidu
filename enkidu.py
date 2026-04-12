@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "phase2-tool-use"))
 from router import route, RoutingTier, RoutingDecision
 from tools.system_info import get_context as get_system_context, should_fetch as is_system_query
 from tools.edgar_screener import get_context as get_edgar_context, should_fetch as is_edgar_query
+from tools.lighting import inference_start, inference_stop
 
 load_dotenv()
 
@@ -257,7 +258,9 @@ def main():
 
         # Run inference
         if decision.tier == RoutingTier.LOCAL:
+            inference_start()
             stats = stream_ollama(prompt)
+            inference_stop()
         else:
             stats = stream_claude(prompt)
 
