@@ -1,56 +1,119 @@
-# Enkidu
+# Enkidu — Building a Local AI Assistant from Scratch
 
-Local AI assistant. Gemma 4 inference + Claude API fallback. Learning CUDA, agentic frameworks, and LLM deployment.
+A public learning journal and working codebase for building a privacy-first, locally-hosted AI assistant on consumer hardware.
 
-## Architecture
+**Hardware used:** NVIDIA RTX 4090 (24GB VRAM), Windows 11, Alienware Aurora R15
+**Goal:** Run a capable LLM locally at zero recurring cost, with Claude API as a fallback for complex reasoning only.
 
-- **Inference**: Ollama + Gemma 4 27B (CUDA 12.x, RTX 4090)
-- **Routing**: Local queries → Gemma; complex reasoning → Claude API
-- **Memory**: ChromaDB + SQLite
-- **Voice** (Phase 4): openwakeword → faster-whisper → Kokoro TTS
-- **Orchestration**: OpenClaw (Discord/Telegram interface)
+This is not a polished product. It is a documented journey — including the mistakes. If you want to build something similar, start here.
+
+---
+
+## Who This Is For
+
+- You want to run an LLM locally and actually understand what's happening under the hood
+- You care about privacy (no sending queries to third-party inference APIs)
+- You want to learn CUDA, Docker, agentic frameworks, and RAG from a practical project
+- You have a modern GPU (RTX 3080+ recommended, 16GB+ VRAM for 27B models)
+
+---
+
+## Architecture (Target State)
+
+```
+User query
+    ↓
+Routing logic (Python)
+    ├── Simple / local → Gemma 3 27B via Ollama (RTX 4090, CUDA)
+    └── Complex / fallback → Claude API (Anthropic)
+                ↓
+        Tool pipeline (optional)
+        ├── SEC Edgar screener
+        ├── Web search
+        └── Custom tools
+                ↓
+        Response + memory storage
+        ├── ChromaDB (vector, semantic search)
+        └── SQLite (structured history)
+```
+
+---
 
 ## Build Phases
 
-**Phase 1: Local Inference** (current)
-- Ollama + Gemma 4 running on 4090
-- Open WebUI for browser chat
-- Claude API working as fallback
-- Learn: CUDA pipelines, inference speed, VRAM management
+| Phase | Goal | Status |
+|-------|------|--------|
+| [Phase 1](./phase1-local-inference/) | Local inference — Gemma 3 27B via Ollama + Open WebUI | 🔄 In Progress |
+| [Phase 2](./phase2-tool-use/) | Tool use + routing logic (local vs Claude) | ⬜ Not Started |
+| [Phase 3](./phase3-agents/) | Agentic orchestration via Discord/CLI | ⬜ Not Started |
+| [Phase 4](./phase4-memory/) | Persistent memory via ChromaDB + SQLite | ⬜ Not Started |
+| Phase 5 | Voice interface (wake word → STT → TTS) | ⬜ Not Started |
 
-**Phase 2: Tool Use**
-- Route queries to local or Claude based on complexity
-- Build 2-3 real tools (SEC Edgar screener, GIS queries, etc.)
-- Actually use it for work
-- Learn: Prompt design, tool calling, token economics
-
-**Phase 3: Agency**
-- OpenClaw integration (Discord/CLI)
-- Multi-step reasoning and routing logic
-- Error handling and fallbacks
-- Learn: Agentic frameworks, orchestration
-
-**Phase 4: Memory**
-- ChromaDB for vector storage + retrieval
-- SQLite for conversation history
-- Persistent context across sessions
-- Learn: RAG, embeddings, state management
-
-**Phase 5: Voice** (optional)
-- Wake word detection
-- Speech-to-text (faster-whisper)
-- Text-to-speech (Kokoro)
-- Learn: Audio pipelines, real-time constraints
-
-## Current Status
-
-Phase 1 setup: Claude API auth working, dependencies installed. Next: Docker + Ollama.
+---
 
 ## Stack
 
-- Python 3.11
-- Anthropic Claude API
-- Ollama (Gemma 4 27B)
-- ChromaDB + nomic-embed-text
-- OpenClaw
-- Docker + WSL2
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| Local inference | [Ollama](https://ollama.com) + Gemma 3 27B | Best perf/size ratio, runs in 16GB VRAM |
+| GPU | NVIDIA RTX 4090, CUDA 12.x | 24GB VRAM, fast enough for 27B Q4 |
+| Container runtime | Docker Desktop + WSL2 | Reproducible, GPU passthrough works well |
+| Chat UI | [Open WebUI](https://github.com/open-webui/open-webui) | Browser-based, connects to Ollama out of the box |
+| Cloud fallback | Anthropic Claude API | Best reasoning quality, selective use only |
+| Vector memory | ChromaDB + nomic-embed-text | Local embeddings, no cloud required |
+| Conversation history | SQLite | Simple, zero infrastructure |
+| Orchestration | TBD (Phase 3) | Evaluating options |
+| Voice (optional) | openwakeword + faster-whisper + Kokoro TTS | All local, all free |
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.11+ (Anaconda recommended)
+- Docker Desktop with WSL2 backend
+- NVIDIA GPU with 16GB+ VRAM (for 27B models; 8GB works for smaller models)
+- NVIDIA drivers updated (CUDA 12.x)
+- An [Anthropic API key](https://console.anthropic.com) (for Claude fallback only)
+
+### Setup
+
+```bash
+git clone https://github.com/bpachter/enkidu.git
+cd enkidu
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
+python test_claude.py  # Should print: Enkidu lives
+```
+
+Then follow the [Phase 1 guide](./phase1-local-inference/README.md) to get Ollama running.
+
+---
+
+## Repo Structure
+
+```
+enkidu/
+├── README.md                    # You are here
+├── JOURNEY.md                   # Running log of what was built, learned, and broken
+├── .env.example                 # Secret template — copy to .env and fill in
+├── requirements.txt             # Python dependencies
+├── test_claude.py               # Phase 0: Claude API proof of concept
+├── phase1-local-inference/      # Docker + Ollama + Open WebUI
+├── phase2-tool-use/             # Routing logic + tool integrations
+├── phase3-agents/               # Agentic orchestration
+└── phase4-memory/               # ChromaDB + SQLite memory layer
+```
+
+---
+
+## Follow the Journey
+
+The honest, unfiltered log of what was actually done (including mistakes) lives in [JOURNEY.md](./JOURNEY.md).
+
+---
+
+## Why "Enkidu"?
+
+In the Epic of Gilgamesh, Enkidu is the wild companion created to match Gilgamesh — powerful, loyal, and built from scratch. Seemed right for a locally-built AI assistant.
