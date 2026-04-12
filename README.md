@@ -113,7 +113,7 @@ RGB keyboard animation while local GPU is running (OpenRGB)
 |-------|------|--------|
 | [Phase 1](./phase1-local-inference/) | Local inference — Gemma 4 26B via Ollama + Open WebUI | ✅ Complete |
 | [Phase 2](./phase2-tool-use/) | Tool use + routing + EDGAR financial screener | ✅ Complete |
-| [Phase 3](./phase3-agents/) | Agentic orchestration via Discord/CLI | ⬜ Not Started |
+| [Phase 3](./phase3-agents/) | ReAct agent loop + Telegram interface + Python sandbox | 🔄 Planned |
 | [Phase 4](./phase4-memory/) | Persistent memory via ChromaDB + SQLite | ⬜ Not Started |
 | Phase 5 | Voice interface (wake word → STT → TTS) | ⬜ Not Started |
 

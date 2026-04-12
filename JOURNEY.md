@@ -235,4 +235,46 @@ The market data fetch (DefeatBeta for 3,000 tickers, ~20 min) ran every single s
 
 ---
 
+## Phase 3 — Agentic Orchestration
+
+**Date:** April 12, 2026 | **Status:** 🔄 Planned
+
+### Architecture Decision: Telegram over iMessage
+
+The original Phase 3 plan referenced Discord. The updated direction is a **Telegram bot** accessible from iPhone.
+
+iMessage was considered — it would be ideal for native iPhone integration. The problem: iMessage has no official API. The only working solutions (BlueBubbles, AirMessage) require a Mac running as a relay server 24/7. No Mac available. Telegram is the correct call: first-class iPhone app, official Bot API, Python SDK (`python-telegram-bot`), and the de facto standard for self-hosted personal bots.
+
+### Phase 3 Vision (co-authored with Gemma 4)
+
+At the end of Phase 2, Gemma 4 was asked to help design Phase 3 with guidance on the goals. It produced a structured architecture document identifying four layers:
+
+1. **Agentic Infrastructure** — ReAct pattern (Reason → Act → Observe loop), Pydantic-driven output validation, self-correction on `ValidationError`
+2. **Quantitative Engine** — Python sandbox tool for arithmetic (pandas/numpy/scipy inside a subprocess), structured EDGAR query interface
+3. **Self-Evolving Layer** — HMM regime detection (identify hidden market states from observable signals), RL strategy optimization (discover optimal screening parameters via reward-based policy learning)
+4. **Grand Synthesis** — closed-loop system where LLM provides reasoning, HMM provides market context, Python sandbox provides mathematical truth, and RL evolves the strategy
+
+The document was notable for being coherent and technically grounded, not just impressive-sounding. The ReAct, Pydantic, and Python sandbox components map directly to real, implementable patterns. HMM and RL are more ambitious but also real (hmmlearn, stable-baselines3).
+
+### What Changes From Phase 2
+
+Phase 2 is a **pipeline**: keyword detection → inject context → single LLM call → response.
+
+Phase 3 is an **agent loop**: the LLM decides what to do next, calls a tool, observes the result, reasons again, and either calls another tool or returns the final answer. Multi-step. Self-correcting. The difference is whether the LLM is a language engine or a reasoning agent.
+
+### Planned Build Order
+
+| Step | Component | Description |
+|------|-----------|-------------|
+| 3.1 | Telegram bot skeleton | Messages reach Enkidu; responses come back to iPhone |
+| 3.2 | ReAct loop (basic) | Agent calls one tool per query |
+| 3.3 | Pydantic validation | Schema-validated tool calls; self-correction on malformed output |
+| 3.4 | Python sandbox | Agent executes pandas/numpy code for arithmetic |
+| 3.5 | Multi-step chains | Agent calls 2+ tools in sequence |
+| 3.6 | Session memory | Agent remembers prior messages in the conversation |
+| 3.7 | HMM regime detection | Market-regime-aware screening |
+| 3.8 | RL optimization | Self-optimizing screening parameter discovery |
+
+---
+
 *This log will be updated as each phase progresses.*
