@@ -352,23 +352,82 @@ First live query hit MAX_ITERATIONS=8 without completing. Causes: (1) `max_token
 
 ## Phase 4 — Persistent Memory + RAG
 
-**Date:** April 13, 2026 | **Status:** 🔄 In Progress
+**Date:** April 13, 2026 | **Status:** ✅ Complete
 
 ### Vision
 
 Two complementary memory systems:
 
 1. **Conversation memory** — ChromaDB + SQLite so Enkidu remembers past conversations across sessions. Past context retrieved via semantic similarity and prepended to the system prompt.
-2. **Document + codebase RAG** — Index local documents (JOURNEY.md, research notes, financial model outputs, the Enkidu codebase itself) into ChromaDB so Enkidu can cite your own prior work. Inspired by Matthew Busel's approach of indexing 1.2M lines of code across 15 projects into a local vector DB using the same Gemma 4 + ChromaDB stack.
+2. **Document + codebase RAG** — Index local documents (JOURNEY.md, research notes, financial model outputs, the Enkidu codebase itself) into ChromaDB so Enkidu can cite your own prior work. Inspired by Matthew Busel's approach of indexing 1.2M lines of code across 15 projects into a local vector DB.
 
 ### Stack
 
 | Component | Technology | Why |
 |-----------|-----------|-----|
-| Vector store | ChromaDB | Local, no server required, good Python SDK |
+| Vector store | ChromaDB (PersistentClient) | Local, no server required, good Python SDK |
 | Embeddings | nomic-embed-text via Ollama | Local, free, 768-dim, strong retrieval quality |
 | Conversation history | SQLite | Zero infrastructure, fast, already on every machine |
-| RAG pipeline | Custom retriever + prompt injection | Same pattern as Phase 2 tool injection |
+| Bridge pattern | Subprocess + dedicated `.venv` | Keeps heavy deps (chromadb, onnxruntime) out of phase3 env |
+
+### What Was Built
+
+**`phase4-memory/memory_store.py`** — dual-write conversation store:
+- SQLite `memory.db` for structured history (id, timestamp, user_msg, asst_msg)
+- ChromaDB `chroma_db/conversations` collection for semantic search
+- `save_exchange()` — writes to both; `retrieve_context(query, k=3)` — cosine similarity < 0.5 filter
+- `get_recent_exchanges(n=5)` — for `/history` command; `memory_stats()` — for `/stats`
+
+**`phase4-memory/document_indexer.py`** — codebase RAG:
+- Indexes `.py`, `.md`, `.txt`, `.rst`, `.toml`, `.yaml`, `.yml`, `.env.example` files
+- 800-char chunks, 150-char overlap; SHA256 chunk IDs make indexing idempotent
+- Skips `.git`, `.venv`, `__pycache__`, `data`, `archive`, hidden dirs
+- ChromaDB `chroma_db/documents` collection with cosine distance < 0.45 relevance filter
+- First full index: **712 chunks from 49 files** in the Enkidu repo
+
+**`phase4-memory/memory_bridge.py`** — subprocess CLI bridge:
+- Commands: `save`, `retrieve`, `search_docs`, `stats`, `reindex`
+- Phase 3 calls it via subprocess using `phase4-memory/.venv/Scripts/python.exe`
+- Prevents chromadb/onnxruntime from being imported into the phase3 environment
+
+**Integrations into Phase 3:**
+
+- `enkidu_agent.py` — `_build_system_prompt()` now calls `_call_memory_bridge("retrieve", user_message)` and injects the result into the system prompt as `{memory}` context block. After each final answer, saves the exchange asynchronously in a daemon thread via `_call_memory_bridge("save", ...)`.
+- `tools/registry.py` — registered two new agent tools:
+  - `recall_memory` — semantic search over past conversation history
+  - `search_docs` — semantic search over the indexed codebase + docs
+- `telegram_interface.py` — `/history` command (last 5 exchanges with timestamps); `/stats` now shows memory + document index counts
+
+### What Broke
+
+**`[WinError 2] .exe -> .exe.deleteme` on pip install** — The running bot process locked `Scripts/` in system Python, preventing pip from installing chromadb. Fixed: kill all Python processes before installing. Solution: create a dedicated venv (`phase4-memory/.venv`) so the bot's system Python Scripts/ is never affected by Phase 4 installs.
+
+**`UnicodeEncodeError: 'charmap' codec can't encode character`** — Windows cp1252 console can't print em-dashes and other non-ASCII characters in indexed source files. Appeared in both `document_indexer.py` test and `memory_bridge.py` stdout. Fixed: `io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")` at the top of `memory_bridge.py`; ASCII-escape workaround in the `document_indexer.py` test print.
+
+**`_call_memory_bridge` unreferenced in `enkidu_agent.py`** — IDE noted the import was unused after the initial scaffold. Prompted wiring in both the system prompt injection and the post-answer save call.
+
+### What Was Learned
+
+**Subprocess bridge pattern** — the cleanest way to isolate heavy ML deps (chromadb installs onnxruntime, huggingface-hub, etc.) from a lightweight bot process. Adds ~50–200ms latency per memory call, which is negligible vs. the multi-second Claude API calls.
+
+**Idempotent chunking via content hashing** — using `SHA256(source_path + char_offset)` as chunk IDs means you can re-run the indexer at any time without duplicating chunks. Essential for a live codebase that evolves weekly.
+
+**Dual-store design** — SQLite for chronological retrieval (`/history`, recent context) and ChromaDB for semantic similarity retrieval. They serve different query patterns and complement each other. The SQLite store costs essentially nothing; the vector store costs ~1MB per 1000 chunks.
+
+**cosine distance thresholds** — conversations: < 0.5 (more lenient, short text); documents: < 0.45 (tighter, avoids noisy code chunks that match superficially). These were tuned empirically on the first real queries.
+
+### Build Order
+
+| Step | Component | Notes |
+|------|-----------|-------|
+| 4.1 | Create `phase4-memory/.venv`, install chromadb + requests | Isolated from phase3 env |
+| 4.2 | `memory_store.py` — SQLite + ChromaDB conversation store | Core dual-write store |
+| 4.3 | `document_indexer.py` — chunk + embed codebase | 712 chunks, 49 files |
+| 4.4 | `memory_bridge.py` — subprocess CLI bridge | 5 commands |
+| 4.5 | Wire into `enkidu_agent.py` — system prompt injection + async save | Memory-augmented agent |
+| 4.6 | Register `recall_memory` + `search_docs` tools in `registry.py` | Agent can explicitly search memory |
+| 4.7 | Add `/history` + enhanced `/stats` to `telegram_interface.py` | Surface memory to user |
+| 4.8 | Fix Windows Unicode in `memory_bridge.py` stdout | UTF-8 wrapper |
 
 ---
 

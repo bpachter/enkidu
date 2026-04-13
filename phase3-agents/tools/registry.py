@@ -13,8 +13,32 @@ to build the tool section of the system prompt.
 
 import os
 import sys
+import subprocess
 import importlib.util
 from typing import Callable
+
+# Phase 4 memory bridge — subprocess so we don't need chromadb in the phase3 env
+_PHASE4_PYTHON = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "phase4-memory", ".venv", "Scripts", "python.exe")
+)
+_MEMORY_BRIDGE = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "phase4-memory", "memory_bridge.py")
+)
+
+def _call_memory_bridge(*args, timeout: int = 15) -> str:
+    """Call memory_bridge.py via the phase4 venv. Returns stdout or error string."""
+    if not os.path.exists(_PHASE4_PYTHON):
+        return "[memory unavailable — phase4 venv not found]"
+    try:
+        result = subprocess.run(
+            [_PHASE4_PYTHON, _MEMORY_BRIDGE] + list(args),
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return result.stdout.strip() or result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return "[memory timeout]"
+    except Exception as e:
+        return f"[memory error: {e}]"
 
 
 def _load_phase2_module(module_name: str):
@@ -176,4 +200,31 @@ register(
         "code": "str — valid Python code to execute"
     },
     fn=lambda code: _run_python(code),
+)
+
+register(
+    name="recall_memory",
+    description=(
+        "Search past conversations for context relevant to the current query. "
+        "Returns semantically similar exchanges from prior sessions. "
+        "Use when the user references something from a past conversation, or when "
+        "grounding the answer in prior discussed data would be helpful."
+    ),
+    parameters={
+        "query": "str — what to search for in past conversations, e.g. 'DUK capital expenditure'"
+    },
+    fn=lambda query: _call_memory_bridge("retrieve", query),
+)
+
+register(
+    name="search_docs",
+    description=(
+        "Search the indexed local knowledge base (JOURNEY.md, Enkidu codebase, research notes) "
+        "for relevant context. Use when the user asks about how something was built, why a "
+        "decision was made, or references project history or documentation."
+    ),
+    parameters={
+        "query": "str — what to search for, e.g. 'why did DUK fail the QV screen'"
+    },
+    fn=lambda query: _call_memory_bridge("search_docs", query),
 )

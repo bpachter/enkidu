@@ -35,8 +35,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from dotenv import load_dotenv
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.util.ssl_ import create_urllib3_context
-import threading
 import telebot
 import telebot.apihelper as _apihelper
 from telebot.types import Message
@@ -47,25 +45,27 @@ load_dotenv()
 # Forces TLS 1.2, disables cert verification and hostname checking.
 # Safe on a personal home network connecting to api.telegram.org.
 
-class _TLS12Adapter(HTTPAdapter):
-    """Forces TLS 1.2 to avoid Windows TLS 1.3 handshake resets (WinError 10054)."""
+class _TLSAdapter(HTTPAdapter):
+    """
+    Custom TLS adapter for Windows WinError 10054 resilience.
+    Uses ssl.create_default_context() (stdlib, not urllib3's context builder)
+    with cert verification and hostname checking disabled. This is the only
+    SSL context that reliably works with Telegram's API on Python/Windows.
+    """
     def init_poolmanager(self, *args, **kwargs):
-        ctx = create_urllib3_context(ssl_minimum_version=ssl.TLSVersion.TLSv1_2,
-                                     ssl_maximum_version=ssl.TLSVersion.TLSv1_2)
+        ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         kwargs["ssl_context"] = ctx
         super().init_poolmanager(*args, **kwargs)
 
-_tls = threading.local()
-
 def _patched_session(reset=False):
-    if reset or not hasattr(_tls, 's'):
-        s = requests.Session()
-        s.verify = False
-        s.mount("https://", _TLS12Adapter())
-        _tls.s = s
-    return _tls.s
+    # Create a fresh session per call — avoids urllib3 reusing stale HTTPS
+    # connections that get TCP-reset (WinError 10054) on Windows long-polling.
+    s = requests.Session()
+    s.verify = False
+    s.mount("https://", _TLSAdapter())
+    return s
 
 _apihelper._get_req_session = _patched_session
 
@@ -174,7 +174,48 @@ def cmd_help(message: Message):
 def cmd_stats(message: Message):
     if not _authorized(message):
         return
-    bot.reply_to(message, f"Queries this session: {_session['queries']}")
+    # Include memory stats if available
+    _phase4_python = os.path.normpath(os.path.join(_here, "..", "phase4-memory", ".venv", "Scripts", "python.exe"))
+    _bridge = os.path.normpath(os.path.join(_here, "..", "phase4-memory", "memory_bridge.py"))
+    mem_stats = ""
+    if os.path.exists(_phase4_python):
+        import subprocess
+        try:
+            r = subprocess.run([_phase4_python, _bridge, "stats"], capture_output=True, text=True, timeout=8)
+            if r.stdout.strip():
+                mem_stats = f"\n{r.stdout.strip()}"
+        except Exception:
+            pass
+    bot.reply_to(message, f"Queries this session: {_session['queries']}{mem_stats}")
+
+
+@bot.message_handler(commands=["history"])
+def cmd_history(message: Message):
+    if not _authorized(message):
+        return
+    _phase4_python = os.path.normpath(os.path.join(_here, "..", "phase4-memory", ".venv", "Scripts", "python.exe"))
+    _bridge = os.path.normpath(os.path.join(_here, "..", "phase4-memory", "memory_bridge.py"))
+    if not os.path.exists(_phase4_python):
+        bot.reply_to(message, "Memory not available.")
+        return
+    import subprocess
+    try:
+        # Use python_sandbox approach — call memory_store directly
+        script = (
+            "import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(sys.argv[0])));"
+            "from memory_store import get_recent_exchanges;"
+            "rows = get_recent_exchanges(5);"
+            "[print(f\"{r['timestamp'][:16]}  {r['user'][:80]}\") for r in rows]"
+        )
+        r = subprocess.run(
+            [_phase4_python, "-c", script],
+            capture_output=True, text=True, timeout=8,
+            cwd=os.path.normpath(os.path.join(_here, "..", "phase4-memory")),
+        )
+        text = r.stdout.strip() or "No history yet."
+        bot.reply_to(message, f"Last 5 exchanges:\n\n{text}")
+    except Exception as e:
+        bot.reply_to(message, f"Could not retrieve history: {e}")
 
 
 @bot.message_handler(commands=["refresh"])
@@ -301,8 +342,23 @@ def main():
     print(f"Authorized user ID: {ALLOWED_USER_ID}")
     print("Long-polling active — Ctrl+C to stop\n")
 
-    # none_stop=True: keep retrying on transient network errors
-    bot.infinity_polling(timeout=20, long_polling_timeout=15, none_stop=True, interval=3)
+    # Outer retry loop: none_stop=True handles API/handler errors but
+    # requests.exceptions.ConnectionError (WinError 10054 TLS reset) can
+    # escape the polling thread and crash the process. Catch it here and
+    # restart polling after a short back-off.
+    while True:
+        try:
+            # long_polling_timeout=0: pure short-polling. Windows resets
+            # long-lived TLS connections (WinError 10054), so we don't keep
+            # the getUpdates connection open at all. Telegram responds
+            # immediately with any pending updates or an empty list.
+            bot.infinity_polling(timeout=10, long_polling_timeout=0, none_stop=True, interval=1)
+        except KeyboardInterrupt:
+            print("\nBot stopped.")
+            break
+        except Exception as e:
+            logger.warning(f"Polling crashed ({type(e).__name__}: {e}), restarting in 5s...")
+            time.sleep(2)
 
 
 if __name__ == "__main__":

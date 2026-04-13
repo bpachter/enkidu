@@ -12,3 +12,9 @@ phase2-tool-use/quant-value/.venv/
 phase2-tool-use/quant-value/logs/
 phase2-tool-use/quant-value/src/data/
 phase3-agents/tools/regime_model.pkl
+
+# Phase 4 — runtime files, not in repo
+phase4-memory/chroma_db/
+phase4-memory/memory.db
+phase4-memory/.venv/
+telegram_bot.log

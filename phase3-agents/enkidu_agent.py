@@ -51,7 +51,7 @@ _tools_path = os.path.join(os.path.dirname(__file__), "tools")
 if _tools_path not in sys.path:
     sys.path.insert(0, _tools_path)
 
-from registry import TOOLS, dispatch, tool_descriptions, get_regime  # noqa: E402
+from registry import TOOLS, dispatch, tool_descriptions, get_regime, _call_memory_bridge  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Config
@@ -112,6 +112,8 @@ Available tools:
 Market context (injected automatically — do not call market_regime unless user asks for detail):
 {regime}
 
+{memory}
+
 Rules:
 - Output ONLY valid JSON. No markdown. No commentary outside the JSON.
 - Call tools when you need data you don't have. Do not guess numbers.
@@ -120,11 +122,12 @@ Rules:
 - If asked to compare two stocks, call edgar_screener for each one separately.
 - Use python_sandbox for any arithmetic (CAGR, blended metrics, ratios, etc.).
 - Let the market regime inform your screening commentary (e.g. tighten filters in Contraction/Crisis).
+- If memory context is provided above, use it to give more grounded, personalized answers.
 - Maximum {max_iter} iterations. If you hit the limit, give your best answer with what you have.
 """
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(user_message: str = "") -> str:
     try:
         regime_info = get_regime()
         regime_block = (
@@ -137,10 +140,17 @@ def _build_system_prompt() -> str:
     except Exception:
         regime_block = "Market regime: unavailable."
 
+    memory_block = ""
+    if user_message:
+        retrieved = _call_memory_bridge("retrieve", user_message, timeout=10)
+        if retrieved and not retrieved.startswith("["):
+            memory_block = retrieved
+
     return _SYSTEM_TEMPLATE.format(
         tools=tool_descriptions(),
         max_iter=MAX_ITERATIONS,
         regime=regime_block,
+        memory=memory_block,
     )
 
 
@@ -218,7 +228,7 @@ def run_agent(
         return "Error: ANTHROPIC_API_KEY not set in .env"
 
     client = Anthropic(api_key=api_key)
-    system_prompt = _build_system_prompt()
+    system_prompt = _build_system_prompt(user_message)
 
     # Message history for the LLM — grows as the loop runs
     messages = [{"role": "user", "content": user_message}]
@@ -251,6 +261,16 @@ def run_agent(
 
         # --- Final answer ---
         if step.final_answer:
+            # Persist to memory asynchronously (non-blocking)
+            try:
+                import threading
+                threading.Thread(
+                    target=_call_memory_bridge,
+                    args=("save", user_message, step.final_answer),
+                    daemon=True,
+                ).start()
+            except Exception:
+                pass
             return step.final_answer
 
         # --- Tool call ---
