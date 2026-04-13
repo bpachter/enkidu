@@ -431,4 +431,134 @@ Two complementary memory systems:
 
 ---
 
+## Phase 5 — Signal Integrity, Backtesting, and Proactive Intelligence
+
+**Date:** April 13, 2026 | **Status:** ✅ Complete
+
+### Vision
+
+Phase 4 gave Enkidu memory. Phase 5 gives it credibility and initiative. Three pillars:
+
+1. **Signal Integrity** — fix the QV screener so its output is actually trustworthy: sector classification, market cap gates, staleness filters, and quality flags
+2. **Backtesting** — timestamp every QV signal and track whether picks have alpha vs. SPY over 30/90/180/365-day horizons. "Was I right?" layer.
+3. **Proactive Intelligence** — Enkidu pushes insights to Telegram without being asked: price dip alerts, ranking changes, weekly performance summaries
+
+The framing that drove these decisions: "I am not trying to be great. I want to be one of the greats."
+
+---
+
+### Pillar 1 — Signal Integrity
+
+**Problem:** The QV screener had several silent failure modes:
+- Financials and utilities (banks, REITs, insurers, utilities) were in the main ranking but shouldn't be — EV/EBIT is meaningless for regulated/balance-sheet-driven businesses
+- Stale data: HMC (Honda) appeared with 2014 financials due to no freshness filter
+- The Piotroski F-Score showed all companies at 2–3/9 because 7 of 9 components (roa_growth, leverage, liquidity, shares, margin, turnover) were silently zeroing out due to missing YoY data in the pipeline
+- Micro-caps and net-loss companies passed through with no warning
+
+**What was built (`phase5-intelligence/sector_classifier.py`):**
+- Fetches SIC codes from `https://data.sec.gov/submissions/CIK{cik}.json` for all 360 screened companies
+- SIC range → sector mapping with `screen_treatment`: include / separate / exclude
+- Key separated sectors: Banking (6000–6199), Credit (6200–6299), Insurance (6300–6499), Real Estate (6500–6552), REITs (6730–6799), Utilities (4900–4941)
+- Outputs `C:\Users\benpa\QuantitativeValue\data\processed\sectors.csv` — 360 companies, 43 in separate-screen categories
+- Respects SEC rate limit (~8 req/sec with 0.12s delay)
+
+**What was changed in `edgar_screener.py`:**
+- `_attach_sectors(df)` — joins sector/screen_treatment onto portfolio DataFrame via CIK
+- `_quality_flags(row)` — returns warning flags: NET LOSS, MICRO-CAP, NEG FCF, HIGH DEBT
+- `get_top_stocks()` updated with 6 ordered quality gates:
+  1. `ebit > 0`
+  2. `revenue > 1M`
+  3. `market_cap_final >= 100M`
+  4. `period_end >= 24 months ago` (staleness filter — eliminates HMC 2014 data)
+  5. `f_roa_positive == 1` AND `f_cfo_positive == 1` (the two F-Score components with real data)
+  6. `screen_treatment == "include"` (sector filter — excludes banks, REITs, utilities)
+- Result: 116 companies pass all gates from the 360-stock universe
+
+**F-Score workaround:** Rather than fixing the underlying pipeline bug (requires a full 2-hour EDGAR rerun), the broken composite `f_score >= 4` gate was replaced with individual component checks for the two components that DO have real data. The remaining 7 components are flagged for a future pipeline fix.
+
+---
+
+### Pillar 2 — Backtesting Engine
+
+**What was built:**
+
+**`phase5-intelligence/signal_logger.py`:**
+- SQLite `signals.db` with `signal_snapshots` table — one row per (date, ticker, rank)
+- `log_snapshot(n=25)` — idempotent: skips if already logged today; mirrors `get_top_stocks()` quality gates
+- `get_snapshot(date)` — returns picks for a given date (or most recent)
+- `list_snapshots()` — all recorded dates
+- First real snapshot: 25 picks logged 2026-04-13 (TK, PAGP, M, UPBD, ABG, IMPP, DXC, AN, NUTX, AMWD, ODD, GLP, WLKP, RJET, RMR, HPQ, SLVM, PRG, INGM, LEA, DVA, HTLM, CPB, BBY, VSNT)
+
+**`phase5-intelligence/performance_tracker.py`:**
+- `update_returns(verbose)` — for every logged snapshot, fetches entry price + exit price at each horizon via yfinance, computes return vs. SPY benchmark, stores in `return_records` table
+- Horizons: 30 / 90 / 180 / 365 calendar days
+- Handles in-progress positions: uses current price if horizon hasn't elapsed; uses actual exit price once it has
+- `performance_report()` — full formatted report by horizon: avg return, avg SPY, avg alpha, win rate, beat-SPY rate, top/bottom 5 picks
+- `performance_summary()` — one-liner: "QV signal performance: 30d: +X.X% alpha, XX% beat SPY"
+- Return tracking is live but maturing — meaningful data will accumulate over 30–365 day horizons
+
+---
+
+### Pillar 3 — Proactive Intelligence
+
+**What was built:**
+
+**`phase5-intelligence/alert_engine.py`:**
+- `alert_price_dip(threshold=-0.05)` — checks current top-25 picks for 5%+ drops from signal-date entry price; a dip is a potential buying opportunity
+- `alert_ranking_diff()` — diffs two most recent snapshots; reports new entries and exits from top-25
+- `alert_performance()` — weekly performance summary; skips if returns are still maturing
+- `run_all_alerts()` — runs all three, sends non-empty results to Telegram
+- Same `_TLSAdapter` (ssl.create_default_context) as the main bot — works on Windows without WinError 10054
+
+**New Telegram commands (added to `telegram_interface.py`):**
+- `/performance` — calls `performance_tracker.update_returns()` + `performance_report()` live
+- `/watchlist` — shows current QV top-15 picks with sector, EV/EBIT, and quality flags
+
+**New agent tools (added to `registry.py`):**
+- `qv_performance` — agent can query signal track record; returns summary or full report depending on query
+- `qv_snapshot` — agent can return the current ranked watchlist from `signal_logger.get_snapshot()`
+
+---
+
+### What Broke
+
+**F-Score gate eliminated 100% of companies.**
+The `f_score >= 4` gate was applied before checking whether the individual components had real data. All 360 companies scored 2–3/9 because 7/9 components defaulted to zero from missing YoY historical data in the pipeline. This produced an empty output with no error — a silent failure. Fix: replace composite gate with `f_roa_positive == 1 AND f_cfo_positive == 1`.
+
+**PRAGMA table_info wrong column index.**
+`signal_logger.get_snapshot()` used `d[0]` to extract column names from `PRAGMA table_info`. That returns the column ID integer (0, 1, 2...), not the name. Column names are at index `d[1]`. All `get_snapshot()` results were dicts with integer keys. Fix: `cols = [d[1] for d in ...]`.
+
+**HMC (Honda) stale 2014 data ranked highly.**
+Honda's most recent SEC EDGAR filing in the screened portfolio was from 2014. No staleness filter existed, so 12-year-old financials were treated as current and ranked near the top. Fix: `period_end >= today - 730 days` filter in `get_top_stocks()`.
+
+**WinError 10054 TLS reset — regression.**
+The TLS fix from Phase 3 (create_urllib3_context forcing TLS 1.2) stopped working after a urllib3 version change. New approach: replace `create_urllib3_context()` with `ssl.create_default_context()` in `_TLSAdapter.init_poolmanager`. Also switched to `long_polling_timeout=0` (short-polling) to eliminate long-lived TCP connections that Windows Schannel resets.
+
+---
+
+### What Was Learned
+
+- **Silent failures are the worst kind.** A gate that eliminates 100% of rows with no log output looks exactly like a gate that eliminates 0%. Always print the row count before and after each filter step.
+- **PRAGMA table_info index off-by-one** is a classic SQLite trap. Always verify which index is which before using fetchall() results as dict keys.
+- **Backtesting requires a "was I right?" timestamp.** Without daily logging of the actual picks at the exact time they were generated, there's no way to compute honest returns. Log first; compute returns later. Even one real snapshot is worth more than a thousand simulated ones.
+- **Proactive alerting changes the tool's character.** A system that only answers questions is a search engine. A system that sends you a price dip alert at 7am without being asked is an analyst.
+- **ssl.create_default_context() vs create_urllib3_context()**: The stdlib context works with Telegram's servers; urllib3's internal context builder does not. This is a Windows-specific incompatibility that is hard to debug because both contexts appear to succeed in raw socket tests.
+
+---
+
+### Build Order
+
+| Step | Component | Notes |
+|------|-----------|-------|
+| 5.1 | `sector_classifier.py` — SIC code fetch + sectors.csv | 360 companies, 43 separated |
+| 5.2 | `edgar_screener.py` — quality gates + flags | 116 pass all gates |
+| 5.3 | `signal_logger.py` — snapshot logging + SQLite | First snapshot: 2026-04-13 |
+| 5.4 | `performance_tracker.py` — return computation vs SPY | Live, maturing over time |
+| 5.5 | `alert_engine.py` — proactive Telegram alerts | price_dip, ranking_diff, performance |
+| 5.6 | `registry.py` — register qv_performance + qv_snapshot | Agent tools wired in |
+| 5.7 | `telegram_interface.py` — /performance + /watchlist commands | Live on restart |
+| 5.8 | Windows Task Scheduler — daily signal_logger + weekly alert_engine | Scheduled automation |
+
+---
+
 *This log will be updated as each phase progresses.*

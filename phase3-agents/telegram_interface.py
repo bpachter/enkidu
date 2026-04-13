@@ -158,13 +158,17 @@ def cmd_help(message: Message):
     bot.reply_to(
         message,
         "Commands:\n"
-        "  /start   — greeting\n"
-        "  /help    — this message\n"
-        "  /stats   — session query count\n"
-        "  /refresh — re-run QV pipeline\n\n"
+        "  /start       — greeting\n"
+        "  /help        — this message\n"
+        "  /stats       — session + memory stats\n"
+        "  /watchlist   — current QV top-25 picks\n"
+        "  /performance — signal track record vs SPY\n"
+        "  /history     — last 5 conversation exchanges\n"
+        "  /refresh     — re-run QV data pipeline\n\n"
         "Examples:\n"
-        "  top 5 undervalued stocks\n"
-        "  compare NUE and CLF on EV/EBIT\n"
+        "  top 10 undervalued stocks\n"
+        "  compare HPQ and BBY on EV/EBIT\n"
+        "  how has the QV model performed?\n"
         "  what is my GPU temperature\n"
         "  calculate CAGR if revenue grew from 10B to 18B over 6 years",
     )
@@ -216,6 +220,67 @@ def cmd_history(message: Message):
         bot.reply_to(message, f"Last 5 exchanges:\n\n{text}")
     except Exception as e:
         bot.reply_to(message, f"Could not retrieve history: {e}")
+
+
+@bot.message_handler(commands=["performance"])
+def cmd_performance(message: Message):
+    if not _authorized(message):
+        return
+    status = bot.reply_to(message, "Fetching performance data...")
+    try:
+        _phase5 = os.path.normpath(os.path.join(_here, "..", "phase5-intelligence"))
+        if _phase5 not in sys.path:
+            sys.path.insert(0, _phase5)
+        _phase2_tools = os.path.normpath(os.path.join(_here, "..", "phase2-tool-use", "tools"))
+        if _phase2_tools not in sys.path:
+            sys.path.insert(0, _phase2_tools)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "performance_tracker",
+            os.path.join(_phase5, "performance_tracker.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        # Update returns then summarize
+        mod.update_returns(verbose=False)
+        text = mod.performance_report()
+    except Exception as e:
+        text = f"Could not load performance data: {e}"
+    _safe_edit(message.chat.id, status.message_id, text[:4090])
+
+
+@bot.message_handler(commands=["watchlist"])
+def cmd_watchlist(message: Message):
+    if not _authorized(message):
+        return
+    try:
+        _phase5 = os.path.normpath(os.path.join(_here, "..", "phase5-intelligence"))
+        if _phase5 not in sys.path:
+            sys.path.insert(0, _phase5)
+        _phase2_tools = os.path.normpath(os.path.join(_here, "..", "phase2-tool-use", "tools"))
+        if _phase2_tools not in sys.path:
+            sys.path.insert(0, _phase2_tools)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "signal_logger",
+            os.path.join(_phase5, "signal_logger.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        snaps = mod.get_snapshot()
+        if not snaps:
+            bot.reply_to(message, "No watchlist yet. Signals are logged daily.")
+            return
+        lines = [f"QV Watchlist ({snaps[0]['snapshot_dt']}):\n"]
+        for s in snaps[:15]:  # top 15 for readability
+            flags = f"  [{s['quality_flags']}]" if s.get('quality_flags') else ""
+            lines.append(
+                f"#{s['rank']:2d} {s['ticker']:<6} {s.get('sector','')[:16]:<16} "
+                f"EV/EBIT:{s.get('ev_ebit', 0):.1f}  VC:{s.get('value_composite', 0):.0f}{flags}"
+            )
+        bot.reply_to(message, "\n".join(lines))
+    except Exception as e:
+        bot.reply_to(message, f"Could not load watchlist: {e}")
 
 
 @bot.message_handler(commands=["refresh"])

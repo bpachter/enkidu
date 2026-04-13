@@ -202,6 +202,101 @@ register(
     fn=lambda code: _run_python(code),
 )
 
+# ---------------------------------------------------------------------------
+# Phase 5 — backtesting + performance tracking
+# ---------------------------------------------------------------------------
+
+_phase5_path = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "phase5-intelligence")
+)
+
+def _qv_performance(query: str = "") -> str:
+    """Call performance_tracker for a summary of signal returns."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "performance_tracker",
+            os.path.join(_phase5_path, "performance_tracker.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        # Ensure phase2 tools are available
+        _phase2_tools = os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "phase2-tool-use", "tools")
+        )
+        if _phase2_tools not in sys.path:
+            sys.path.insert(0, _phase2_tools)
+        if _phase5_path not in sys.path:
+            sys.path.insert(0, _phase5_path)
+        spec.loader.exec_module(mod)
+
+        if any(kw in query.lower() for kw in ["full", "detail", "report"]):
+            return mod.performance_report()
+        else:
+            return mod.performance_summary()
+    except Exception as e:
+        return f"Performance data unavailable: {e}"
+
+
+def _qv_signal_snapshot(query: str = "") -> str:
+    """Return the most recent QV signal snapshot."""
+    try:
+        if _phase5_path not in sys.path:
+            sys.path.insert(0, _phase5_path)
+        spec = importlib.util.spec_from_file_location(
+            "signal_logger",
+            os.path.join(_phase5_path, "signal_logger.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        _phase2_tools = os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "phase2-tool-use", "tools")
+        )
+        if _phase2_tools not in sys.path:
+            sys.path.insert(0, _phase2_tools)
+        spec.loader.exec_module(mod)
+
+        snaps = mod.get_snapshot()
+        if not snaps:
+            return "No signal snapshots yet. The logger runs daily to record picks."
+
+        lines = [f"QV signal snapshot ({snaps[0]['snapshot_dt']}, {len(snaps)} picks):"]
+        for s in snaps:
+            flags = f"  [{s['quality_flags']}]" if s.get('quality_flags') else ""
+            lines.append(
+                f"  #{s['rank']:2d}  {s['ticker']:<6} {s.get('sector',''):<20} "
+                f"EV/EBIT: {s.get('ev_ebit', 0):.2f}  VC: {s.get('value_composite', 0):.1f}{flags}"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Signal snapshot unavailable: {e}"
+
+
+register(
+    name="qv_performance",
+    description=(
+        "Get the track record of QV stock-picking signals. Shows average returns, "
+        "alpha vs SPY, and win rate across 30/90/180/365-day horizons. "
+        "Use when the user asks 'how has the QV model performed?', 'what's our alpha?', "
+        "or 'show me the backtesting results'. Returns 'full report' when asked for details."
+    ),
+    parameters={
+        "query": "str — e.g. 'performance summary', 'full report', 'how has the model done'"
+    },
+    fn=_qv_performance,
+)
+
+register(
+    name="qv_snapshot",
+    description=(
+        "Show the most recent QV signal snapshot — the current ranked watchlist of "
+        "top undervalued stocks with quality flags and sector labels. "
+        "Use when the user asks 'what's on the current watchlist?', "
+        "'show me the QV picks', or 'what were the top picks logged?'"
+    ),
+    parameters={
+        "query": "str — optional context, e.g. 'current watchlist'"
+    },
+    fn=_qv_signal_snapshot,
+)
+
 register(
     name="recall_memory",
     description=(

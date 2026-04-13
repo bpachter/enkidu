@@ -157,39 +157,167 @@ def load_companies() -> Optional[pd.DataFrame]:
     return pd.read_csv(path, low_memory=False)
 
 
+def load_sectors() -> Optional[pd.DataFrame]:
+    """Load the sector classification table built by sector_classifier.py."""
+    p = get_processed_path()
+    if not p:
+        return None
+    path = p / "sectors.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path, low_memory=False)
+
+
+def _attach_sectors(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Join sector data onto a portfolio DataFrame.
+    Adds columns: sector, screen_treatment, sic_description.
+    Returns df unchanged if sectors.csv is unavailable.
+    """
+    sectors = load_sectors()
+    if sectors is None or "cik" not in df.columns:
+        df["sector"] = "Unknown"
+        df["screen_treatment"] = "include"
+        return df
+
+    sector_cols = ["cik", "sector", "screen_treatment", "sic_description"]
+    sector_cols = [c for c in sector_cols if c in sectors.columns]
+    merged = df.merge(sectors[sector_cols], on="cik", how="left")
+    merged["sector"] = merged["sector"].fillna("Unknown")
+    merged["screen_treatment"] = merged["screen_treatment"].fillna("include")
+    return merged
+
+
+def _quality_flags(row: pd.Series) -> str:
+    """
+    Return a comma-separated string of quality warning flags for a stock.
+    Empty string means no concerns.
+    """
+    flags = []
+    # Debt-burdened: positive EBIT but net income negative
+    if pd.notna(row.get("net_income")) and pd.notna(row.get("ebit")):
+        if row["ebit"] > 0 and row["net_income"] < 0:
+            flags.append("NET LOSS")
+    # Micro-cap: illiquid, harder to trade
+    mcap = row.get("market_cap_final") or row.get("market_cap")
+    if pd.notna(mcap) and mcap < 100_000_000:
+        flags.append("MICRO-CAP")
+    # Negative free cash flow
+    if pd.notna(row.get("fcf")) and row["fcf"] < 0:
+        flags.append("NEG FCF")
+    # High leverage
+    if pd.notna(row.get("debt_to_equity")) and row["debt_to_equity"] > 2.0:
+        flags.append("HIGH DEBT")
+    # Negative net income (profitable at EBIT but losing money after debt service)
+    if pd.notna(row.get("net_income")) and row["net_income"] < 0:
+        if "NET LOSS" not in flags:  # avoid duplicate with the EBIT check
+            flags.append("NET LOSS")
+    return ", ".join(flags)
+
+
 # --- Query functions ---
 
-def get_top_stocks(n: int = 10) -> Optional[pd.DataFrame]:
+def get_top_stocks(
+    n: int = 10,
+    min_market_cap: float = 100_000_000,
+    include_financials: bool = False,
+) -> Optional[pd.DataFrame]:
     """
-    Return the top N stocks ranked by fundamental quality.
-    Uses ROA as primary sort (best proxy for quality without market prices).
-    Falls back gracefully to whatever valuation columns exist.
+    Return the top N stocks ranked by QV composite score.
+
+    Quality gates applied (all configurable):
+      - Positive EBIT (already in pipeline, enforced here too)
+      - Revenue > $1M
+      - Market cap >= min_market_cap (default $100M — below this, stocks are illiquid)
+      - Sector filter: Banking/Insurance/REITs/Utilities excluded by default
+        (use include_financials=True to include them)
+
+    Each result includes a sector label and quality_flags column so the
+    agent can surface warnings without needing to re-derive them.
     """
     df = load_portfolio()
     if df is None:
         return None
 
-    # Pick best available sort column
-    for sort_col in ["value_composite", "ev_ebit", "roa"]:
-        if sort_col in df.columns:
-            break
+    # Attach sector data
+    df = _attach_sectors(df)
 
-    cols = [c for c in ["ticker", "period_end", "roa", "roe", "ebit",
-                         "fcf", "gross_margin", "operating_margin",
-                         "debt_to_equity", "accrual_ratio",
-                         "value_composite", "ev_ebit"]
-            if c in df.columns]
-
-    # Require positive EBIT and meaningful revenue to filter out junk
+    # --- Hard quality gates ---
     if "ebit" in df.columns:
         df = df[df["ebit"] > 0]
     if "revenue" in df.columns:
         df = df[df["revenue"] > 1_000_000]
 
+    # Market cap floor — use best available market cap column
+    mcap_col = next((c for c in ["market_cap_final", "market_cap"] if c in df.columns), None)
+    if mcap_col and min_market_cap > 0:
+        df = df[df[mcap_col].fillna(0) >= min_market_cap]
+
+    # Data staleness: reject filings older than 24 months
+    # (company may have been acquired, delisted, or fundamentally changed)
+    if "period_end" in df.columns:
+        import datetime
+        cutoff = (datetime.date.today() - datetime.timedelta(days=730)).isoformat()
+        df = df[df["period_end"] >= cutoff]
+
+    # Quality gate: must have positive ROA AND positive CFO.
+    # NOTE: The pipeline's YoY F-Score components (leverage, liquidity, shares,
+    # margin, turnover) all default to 0 due to missing historical data — the
+    # full 9-point F-Score is meaningless here. We use the 3 components that
+    # DO have data as a proxy. This will be fixed in the next pipeline rerun.
+    if "f_roa_positive" in df.columns:
+        df = df[df["f_roa_positive"] == 1]   # require ROA > 0
+    if "f_cfo_positive" in df.columns:
+        df = df[df["f_cfo_positive"] == 1]   # require CFO > 0 (real cash generation)
+
+    # Sector filter
+    if not include_financials:
+        df = df[df["screen_treatment"] == "include"]
+
+    if df.empty:
+        return None
+
+    # Pick best available sort column (lower = better for composites/EV ratios)
+    sort_col = next((c for c in ["value_composite", "ev_ebit", "roa"] if c in df.columns), None)
+    if sort_col is None:
+        return None
+
+    # Add quality flags
+    df = df.copy()
+    df["quality_flags"] = df.apply(_quality_flags, axis=1)
+
+    cols = [c for c in [
+        "ticker", "sector", "period_end", "roa", "roe", "ebit", "net_income",
+        "fcf", "gross_margin", "operating_margin", "debt_to_equity",
+        "accrual_ratio", "f_score", "value_composite", "ev_ebit", "quality_flags"
+    ] if c in df.columns]
+
     if sort_col == "roa":
         return df.nlargest(n, sort_col)[cols].reset_index(drop=True)
     else:
         return df.nsmallest(n, sort_col)[cols].reset_index(drop=True)
+
+
+def get_sector_summary() -> str:
+    """
+    Return a one-line summary of how many companies were excluded by sector
+    in the current screened portfolio.
+    """
+    df = load_portfolio()
+    if df is None:
+        return ""
+    df = _attach_sectors(df)
+    if "screen_treatment" not in df.columns:
+        return ""
+
+    excluded = df[df["screen_treatment"] != "include"]
+    if excluded.empty:
+        return ""
+
+    by_sector = excluded.groupby("sector").size()
+    parts = [f"{sector}: {count}" for sector, count in by_sector.items()]
+    total = len(excluded)
+    return f"{total} companies in separate-screen sectors ({', '.join(parts)}) — excluded from default ranking. Ask about 'financials screen' or 'utilities screen' for sector-specific analysis."
 
 
 def get_ticker_summary(ticker: str) -> Optional[dict]:
@@ -363,17 +491,30 @@ def get_context(query: str) -> str:
                     lines.append(f"  {k}: {v}")
             return "\n".join(lines)
 
+    # Financials / sector-specific request
+    include_financials = any(kw in query_lower for kw in [
+        "financial", "bank", "insurance", "reit", "utility", "utilities",
+        "financials screen", "all sectors"
+    ])
+
     # Top stocks request
-    if any(kw in query_lower for kw in ["top", "best", "rank", "highest", "screen"]):
+    if any(kw in query_lower for kw in ["top", "best", "rank", "highest", "screen", "undervalued"]):
         n = 10
         for word in query_lower.split():
             if word.isdigit():
                 n = int(word)
                 break
-        top = get_top_stocks(n)
+
+        top = get_top_stocks(n, include_financials=include_financials)
+        sector_note = get_sector_summary()
         if top is not None:
-            lines.append(f"Top {n} stocks by overall rank:")
+            label = f"Top {n} stocks by QV composite score"
+            if not include_financials:
+                label += " (industrials/services/tech — financials/utilities screened separately)"
+            lines.append(label + ":")
             lines.append(format_dataframe(top))
+            if sector_note:
+                lines.append(f"\nNote: {sector_note}")
 
     # Filtered query
     elif any(kw in query_lower for kw in ["cheap", "value", "low debt", "quality", "strong"]):
