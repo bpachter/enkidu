@@ -307,10 +307,20 @@ def _build_local_system_prompt(user_message: str = "") -> str:
 
 def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None) -> Optional[str]:
     """
-    Send a query directly to Ollama (no ReAct loop). Returns the response
-    string, or None if Ollama is unreachable (caller should fall back to Claude).
+    Send a query directly to Ollama with streaming enabled.
+
+    Streams tokens as they arrive and calls on_step() with partial output
+    every ~1.5 seconds so the Telegram placeholder message updates live.
+
+    Returns the complete response string, or None if Ollama is unreachable
+    (caller falls back to Claude).
+
+    Timeouts:
+        connect=90s  — allows cold model load from disk (~18GB, takes 30-60s)
+        read=300s    — maximum time for the full streamed response
     """
     import requests as _req
+    import time as _time
 
     if on_step:
         on_step(f"Running on local GPU ({OLLAMA_MODEL})...")
@@ -326,12 +336,42 @@ def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None) -> O
                     {"role": "system", "content": system},
                     {"role": "user", "content": query},
                 ],
-                "stream": False,
+                "stream": True,
             },
-            timeout=120,
+            stream=True,
+            timeout=(90, 300),  # (connect, read) — connect allows cold model load
         )
         resp.raise_for_status()
-        answer = resp.json()["message"]["content"]
+
+        tokens: list[str] = []
+        last_edit = 0.0
+
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            try:
+                chunk = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            token = chunk.get("message", {}).get("content", "")
+            if token:
+                tokens.append(token)
+
+                # Rate-limited Telegram update — show tail of partial response
+                now = _time.monotonic()
+                if on_step and now - last_edit >= 1.5 and len(tokens) > 5:
+                    partial = "".join(tokens)
+                    preview = partial[-300:] if len(partial) > 300 else partial
+                    on_step(preview)
+                    last_edit = now
+
+            if chunk.get("done"):
+                break
+
+        answer = "".join(tokens).strip()
+        if not answer:
+            return None
 
         # Save to memory asynchronously
         try:
