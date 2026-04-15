@@ -91,15 +91,23 @@ def main():
         lighting._corsair_take_control_and_set(*lighting._IDLE_COLOR)
         log.info("Keyboard idle blue set.")
 
-    log.info("Heartbeat every 30 s to maintain color.")
-    tick = 0
+    # AlienFX heartbeat: every 5 s so AWCC theme overrides are recovered quickly.
+    # Corsair heartbeat: every 30 s (requesting exclusive control repeatedly is
+    # heavier, and iCUE rarely drops the color once set).
+    log.info("Heartbeat: AlienFX every 5 s, Corsair every 30 s.")
+    afx_tick    = 0
+    corsair_tick = 0
     while _running:
         time.sleep(1)
-        tick += 1
-        if tick >= 30:
-            tick = 0
-            # Re-apply idle color in case AWCC/iCUE briefly took over.
+        afx_tick     += 1
+        corsair_tick += 1
+
+        if afx_tick >= 5:
+            afx_tick = 0
             lighting._alienfw.set_all(*lighting._IDLE_COLOR)
+
+        if corsair_tick >= 30:
+            corsair_tick = 0
             lighting._corsair_take_control_and_set(*lighting._IDLE_COLOR)
 
     log.info("Startup lighting stopped.")

@@ -127,7 +127,9 @@ class _AlienFXBackend:
             return
         try:
             packed = (brightness << 24) | (r << 16) | (g << 8) | b
-            self._lfx.LFX_Reset()
+            # Do NOT call LFX_Reset() here — on the AWCC SDK it flushes black
+            # to hardware immediately, causing a visible flash before LFX_Update
+            # commits our color.  LFX_Light(LFX_ALL) covers every light anyway.
             self._lfx.LFX_Light(0x07FFFFFF, packed)  # LFX_ALL
             self._lfx.LFX_Update()
         except Exception as e:
@@ -325,7 +327,8 @@ def _tower_rainbow_loop(stop: threading.Event) -> None:
 
             if use_per_light:
                 try:
-                    lfx.LFX_Reset()
+                    # No LFX_Reset() — all 75 lights are set individually below,
+                    # so Reset is redundant and would flash black each frame.
                     for i in range(n):
                         frac = i / n  # 0.0 → 1.0 across all lights
 
