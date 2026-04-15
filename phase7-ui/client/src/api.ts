@@ -38,6 +38,7 @@ export async function fetchRegime() {
 
 export function createChatSocket(
   onStep: (msg: string) => void,
+  onToken: (token: string) => void,
   onResponse: (msg: string) => void,
   onDone: () => void,
   onError: (e: string) => void,
@@ -46,6 +47,7 @@ export function createChatSocket(
   ws.onmessage = (ev) => {
     const data = JSON.parse(ev.data)
     if (data.type === 'step')     onStep(data.content)
+    if (data.type === 'token')    onToken(data.content)
     if (data.type === 'response') onResponse(data.content)
     if (data.type === 'done')     onDone()
     if (data.type === 'error')    onError(data.content)

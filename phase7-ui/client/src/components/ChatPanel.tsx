@@ -5,15 +5,43 @@ import { createChatSocket } from '../api'
 let chatSocket: WebSocket | null = null
 let pendingBotId: string | null = null
 
+// rAF-batched token buffer — accumulates tokens within one animation frame
+// then flushes to the store in a single setState call (~60 updates/sec max)
+let tokenBuffer = ''
+let rafPending  = false
+
+function flushTokenBuffer() {
+  rafPending = false
+  if (!tokenBuffer || !pendingBotId) { tokenBuffer = ''; return }
+  const buf = tokenBuffer
+  tokenBuffer = ''
+  const id = pendingBotId
+  useStore.setState((s) => ({
+    messages: s.messages.map((m) =>
+      m.id === id ? { ...m, content: (m.content || '') + buf } : m
+    ),
+  }))
+}
+
 function connectSocket() {
   if (chatSocket && chatSocket.readyState <= WebSocket.OPEN) return
 
   const { setBusy, appendStep } = useStore.getState()
 
   chatSocket = createChatSocket(
+    // onStep
     (step) => {
       if (pendingBotId) appendStep(pendingBotId, step)
     },
+    // onToken — batched via requestAnimationFrame
+    (tok) => {
+      tokenBuffer += tok
+      if (!rafPending) {
+        rafPending = true
+        requestAnimationFrame(flushTokenBuffer)
+      }
+    },
+    // onResponse — used only for Claude tool-use (no tokens streamed)
     (response) => {
       if (pendingBotId) {
         useStore.setState((s) => ({
@@ -23,11 +51,16 @@ function connectSocket() {
         }))
       }
     },
+    // onDone
     () => {
+      // Flush any remaining buffered tokens before marking done
+      flushTokenBuffer()
       setBusy(false)
       pendingBotId = null
     },
+    // onError
     (err) => {
+      flushTokenBuffer()
       if (pendingBotId) {
         useStore.setState((s) => ({
           messages: s.messages.map((m) =>

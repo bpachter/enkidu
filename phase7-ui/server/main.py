@@ -373,12 +373,20 @@ async def ws_chat(ws: WebSocket):
             conversation_id = data.get("conversation_id")
             prior_messages  = _fetch_prior_messages(conversation_id) if conversation_id else []
 
-            # Stream progress steps back to client
+            # Stream progress steps and tokens back to client
             loop = asyncio.get_running_loop()
+            tokens_sent = [0]
 
             def on_step(msg: str):
                 asyncio.run_coroutine_threadsafe(
                     ws.send_json({"type": "step", "content": msg}),
+                    loop,
+                )
+
+            def on_token(tok: str):
+                tokens_sent[0] += 1
+                asyncio.run_coroutine_threadsafe(
+                    ws.send_json({"type": "token", "content": tok}),
                     loop,
                 )
 
@@ -391,9 +399,11 @@ async def ws_chat(ws: WebSocket):
             try:
                 response = await loop.run_in_executor(
                     None,
-                    lambda: run_agent(message, on_step=on_step, prior_messages=prior_messages),
+                    lambda: run_agent(message, on_step=on_step, on_token=on_token, prior_messages=prior_messages),
                 )
-                await ws.send_json({"type": "response", "content": response})
+                # Only send full response if no tokens were streamed (Claude tool-use path)
+                if tokens_sent[0] == 0:
+                    await ws.send_json({"type": "response", "content": response or ""})
             except Exception as e:
                 await ws.send_json({"type": "error", "content": str(e)})
 

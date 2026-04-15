@@ -378,7 +378,7 @@ def _build_local_system_prompt(user_message: str = "", web_context: str | None =
     return "\n".join(parts)
 
 
-def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None, save_memory: bool = True, prior_messages: Optional[list] = None) -> Optional[str]:
+def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None, save_memory: bool = True, prior_messages: Optional[list] = None, on_token: Optional[Callable[[str], None]] = None) -> Optional[str]:
     """
     Send a query directly to Ollama with streaming enabled.
 
@@ -439,13 +439,17 @@ def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None, save
             if token:
                 tokens.append(token)
 
-                # Rate-limited Telegram update — show tail of partial response
-                now = _time.monotonic()
-                if on_step and now - last_edit >= 1.5 and len(tokens) > 5:
-                    partial = "".join(tokens)
-                    preview = partial[-300:] if len(partial) > 300 else partial
-                    on_step(preview)
-                    last_edit = now
+                if on_token:
+                    # UI streaming — send every token directly
+                    on_token(token)
+                else:
+                    # Fallback for Telegram/CLI: batch preview every 1.5s
+                    now = _time.monotonic()
+                    if on_step and now - last_edit >= 1.5 and len(tokens) > 5:
+                        partial = "".join(tokens)
+                        preview = partial[-300:] if len(partial) > 300 else partial
+                        on_step(preview)
+                        last_edit = now
 
             if chunk.get("done"):
                 break
@@ -483,6 +487,7 @@ def run_agent(
     on_step: Optional[Callable[[str], None]] = None,
     save_memory: bool = True,
     prior_messages: Optional[list] = None,
+    on_token: Optional[Callable[[str], None]] = None,
 ) -> str:
     """
     Run the ReAct loop for a single user message.
@@ -501,7 +506,7 @@ def run_agent(
     """
     _lighting_start()
     try:
-        return _run_agent_inner(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages)
+        return _run_agent_inner(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages, on_token=on_token)
     finally:
         _lighting_stop()
 
@@ -511,12 +516,13 @@ def _run_agent_inner(
     on_step: Optional[Callable[[str], None]] = None,
     save_memory: bool = True,
     prior_messages: Optional[list] = None,
+    on_token: Optional[Callable[[str], None]] = None,
 ) -> str:
     # --- Routing decision ---
     if _FORCE_LOCAL_ONLY:
         if on_step:
             on_step(f"Routing: forced local GPU ({OLLAMA_MODEL})")
-        result = _run_local(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages)
+        result = _run_local(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages, on_token=on_token)
         if result is not None:
             return result
         return (
@@ -527,7 +533,7 @@ def _run_agent_inner(
     if not _needs_tools(user_message):
         if on_step:
             on_step(f"Routing: local GPU ({OLLAMA_MODEL})")
-        result = _run_local(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages)
+        result = _run_local(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages, on_token=on_token)
         if result is not None:
             return result
         # Ollama unreachable — fall through to Claude
