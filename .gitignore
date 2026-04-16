@@ -18,3 +18,7 @@ phase4-memory/chroma_db/
 phase4-memory/memory.db
 phase4-memory/.venv/
 telegram_bot.log
+startup_lighting.log
+
+# Phase 5 — runtime database, written daily by pipeline
+phase5-intelligence/signals.db
