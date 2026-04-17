@@ -346,6 +346,43 @@ def prewarm_chatterbox():
 
 
 # ---------------------------------------------------------------------------
+# Markdown stripping — clean text before TTS so Kokoro doesn't speak symbols
+# ---------------------------------------------------------------------------
+
+def _strip_markdown(text: str) -> str:
+    """
+    Remove markdown formatting so Kokoro doesn't speak asterisks, hashes, etc.
+    Paragraph breaks become '. ' so the sentence splitter creates natural pauses.
+    """
+    # Code fences — remove entirely (no value read aloud)
+    text = re.sub(r'```[\s\S]*?```', ' ', text)
+    # Inline code — strip backticks, keep content
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    # Headers — strip leading hashes, keep text
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # Bold / italic — strip asterisks and underscores
+    text = re.sub(r'\*{1,3}', '', text)
+    text = re.sub(r'_{1,2}([^_\n]+)_{1,2}', r'\1', text)
+    # Blockquotes
+    text = re.sub(r'^\s*>\s*', '', text, flags=re.MULTILINE)
+    # Bullet list items (- / * / +)
+    text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+    # Numbered list items
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    # Horizontal rules
+    text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+    # Paragraph breaks → '. ' so split_sentences creates natural pauses
+    text = re.sub(r'\n{2,}', '. ', text)
+    # Single newlines → space
+    text = re.sub(r'\n', ' ', text)
+    # Collapse duplicate periods (e.g. end-of-sentence + inserted '.')
+    text = re.sub(r'\.[ .]+', '. ', text)
+    # Collapse multiple spaces
+    text = re.sub(r'  +', ' ', text)
+    return text.strip()
+
+
+# ---------------------------------------------------------------------------
 # Sentence splitting — for streaming TTS
 # ---------------------------------------------------------------------------
 
@@ -635,6 +672,7 @@ async def synthesize(text: str, voice_profile: Optional[str] = None) -> tuple[by
 
     Priority: Kokoro → F5-TTS (if wav profile) → Chatterbox → edge-tts → pyttsx3
     """
+    text = _strip_markdown(text)
     if not text.strip():
         return b"", "wav"
 
@@ -694,6 +732,7 @@ async def synthesize_streaming(
 
     Falls back to full synthesize() per-sentence if Kokoro is unavailable.
     """
+    text = _strip_markdown(text)
     if not text.strip():
         return
 
