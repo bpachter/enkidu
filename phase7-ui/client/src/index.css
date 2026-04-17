@@ -49,14 +49,13 @@ body::after {
 /* ── App grid ── */
 .app-grid {
   display: grid; height: 100vh; width: 100vw;
-  grid-template-columns: 210px 1fr 300px;
+  grid-template-columns: 1fr 310px;
   grid-template-rows: 42px 1fr;
   gap: 1px; background: var(--border); overflow: hidden;
 }
-.app-header  { grid-column: 1/-1; grid-row: 1; }
-.col-left    { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; overflow: hidden; }
-.col-center  { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; overflow: hidden; }
-.col-right   { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; overflow: hidden; }
+.app-header { grid-column: 1/-1; grid-row: 1; }
+.col-chat   { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; overflow: hidden; }
+.col-right  { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; overflow: hidden; }
 
 /* ── Panel ── */
 .panel {

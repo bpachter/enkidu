@@ -31,7 +31,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -51,6 +51,10 @@ def _get_voice():
         spec.loader.exec_module(mod)
         _voice = mod
         logger.info("Voice module loaded.")
+        try:
+            mod.prewarm_chatterbox()
+        except Exception:
+            pass
     except Exception as e:
         logger.warning(f"Voice module unavailable: {e}")
     return _voice
@@ -392,6 +396,46 @@ async def delete_memory(exchange_id: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@app.get("/api/test-audio")
+async def test_audio():
+    """Returns a short TTS clip directly as audio — open in browser to test playback."""
+    voice = _get_voice()
+    if voice is None:
+        return JSONResponse({"error": "voice unavailable"}, status_code=503)
+    data, fmt = await voice.synthesize("Enkidu online. Audio system is working.")
+    mime = "audio/wav" if fmt == "wav" else "audio/mpeg"
+    return Response(content=data, media_type=mime)
+
+
+@app.get("/api/voices")
+def get_voices():
+    """List available voice profiles from the voices/ directory."""
+    voice = _get_voice()
+    if voice is None:
+        return {"voices": [], "active": "default"}
+    profiles = voice.list_voices()
+    return {
+        "voices": ["default"] + profiles,
+        "active": voice.get_active_voice(),
+    }
+
+
+class VoiceSelect(BaseModel):
+    profile: str
+
+
+@app.post("/api/voice")
+def set_voice(body: VoiceSelect):
+    """Switch the active TTS voice profile."""
+    voice = _get_voice()
+    if voice is None:
+        return JSONResponse({"error": "voice module unavailable"}, status_code=503)
+    ok = voice.set_active_voice(body.profile)
+    if not ok:
+        return JSONResponse({"error": f"profile '{body.profile}' not found"}, status_code=404)
+    return {"ok": True, "active": body.profile}
+
+
 @app.post("/api/chat")
 async def chat_rest(body: dict):
     """Non-streaming chat endpoint (fallback for clients that don't use WS)."""
@@ -457,6 +501,7 @@ def _fetch_prior_messages(exchange_id: str) -> list:
 async def ws_chat(ws: WebSocket):
     await ws.accept()
     run_agent = _import_agent()
+    voice     = _get_voice()
     try:
         while True:
             data = await ws.receive_json()
@@ -464,12 +509,14 @@ async def ws_chat(ws: WebSocket):
             if not message:
                 continue
 
-            conversation_id = data.get("conversation_id")
-            prior_messages  = _fetch_prior_messages(conversation_id) if conversation_id else []
+            conversation_id  = data.get("conversation_id")
+            prior_messages   = _fetch_prior_messages(conversation_id) if conversation_id else []
+            tts_enabled      = data.get("tts", True)   # client can opt out
+            voice_profile_req = data.get("voice_profile")  # None → use module _active_voice
 
-            # Stream progress steps and tokens back to client
             loop = asyncio.get_running_loop()
             tokens_sent = [0]
+            collected_tokens: list[str] = []
 
             def on_step(msg: str):
                 asyncio.run_coroutine_threadsafe(
@@ -479,6 +526,7 @@ async def ws_chat(ws: WebSocket):
 
             def on_token(tok: str):
                 tokens_sent[0] += 1
+                collected_tokens.append(tok)
                 asyncio.run_coroutine_threadsafe(
                     ws.send_json({"type": "token", "content": tok}),
                     loop,
@@ -495,11 +543,30 @@ async def ws_chat(ws: WebSocket):
                     None,
                     lambda: run_agent(message, on_step=on_step, on_token=on_token, prior_messages=prior_messages),
                 )
-                # Only send full response if no tokens were streamed (Claude tool-use path)
                 if tokens_sent[0] == 0:
-                    await ws.send_json({"type": "response", "content": response or ""})
+                    final_text = response or ""
+                    await ws.send_json({"type": "response", "content": final_text})
+                else:
+                    final_text = "".join(collected_tokens)
             except Exception as e:
                 await ws.send_json({"type": "error", "content": str(e)})
+                await ws.send_json({"type": "done"})
+                continue
+
+            # TTS — speak the response
+            if tts_enabled and voice and final_text.strip():
+                try:
+                    audio_bytes, audio_fmt = await asyncio.wait_for(
+                        voice.synthesize(final_text, voice_profile=voice_profile_req), timeout=180.0
+                    )
+                    if audio_bytes:
+                        await ws.send_json({
+                            "type": "tts_audio",
+                            "data": base64.b64encode(audio_bytes).decode(),
+                            "format": audio_fmt,
+                        })
+                except Exception as e:
+                    logger.warning(f"Chat TTS error: {e}")
 
             await ws.send_json({"type": "done"})
 
@@ -536,8 +603,9 @@ async def ws_voice(ws: WebSocket):
             if data.get("type") != "audio":
                 continue
 
-            raw_bytes   = base64.b64decode(data["data"])
-            sample_rate = int(data.get("rate", 16000))
+            raw_bytes    = base64.b64decode(data["data"])
+            sample_rate  = int(data.get("rate", 16000))
+            voice_profile = data.get("voice_profile")   # None → use module-level active voice
 
             # ── 1. Transcribe ──────────────────────────────────────────────
             await ws.send_json({"type": "status", "content": "Transcribing…"})
@@ -596,19 +664,45 @@ async def ws_voice(ws: WebSocket):
             # ── 3. TTS ─────────────────────────────────────────────────────
             await ws.send_json({"type": "status", "content": "Speaking…"})
 
-            mp3_bytes = await voice.synthesize(final_text)
-            if mp3_bytes:
-                await ws.send_json({
-                    "type": "tts_audio",
-                    "data": base64.b64encode(mp3_bytes).decode(),
-                    "format": "mp3",
-                })
+            try:
+                audio_bytes, audio_fmt = await asyncio.wait_for(
+                    voice.synthesize(final_text, voice_profile=voice_profile), timeout=180.0
+                )
+                if audio_bytes:
+                    await ws.send_json({
+                        "type": "tts_audio",
+                        "data": base64.b64encode(audio_bytes).decode(),
+                        "format": audio_fmt,
+                    })
+                else:
+                    logger.warning("TTS returned empty audio")
+                    await ws.send_json({"type": "tts_error", "content": "TTS unavailable"})
+            except asyncio.TimeoutError:
+                logger.error("TTS timed out after 180s")
+                await ws.send_json({"type": "tts_error", "content": "TTS timed out"})
+            except Exception as e:
+                logger.error(f"TTS error: {e}")
+                await ws.send_json({"type": "tts_error", "content": str(e)})
 
             await ws.send_json({"type": "done"})
 
-    except (WebSocketDisconnect, Exception):
+    except WebSocketDisconnect:
         pass
+    except Exception as e:
+        logger.error(f"Voice WS error: {e}", exc_info=True)
+        try:
+            await ws.send_json({"type": "error", "content": str(e)})
+        except Exception:
+            pass
 
+
+# ---------------------------------------------------------------------------
+# Serve voice profile previews (for selecting reference clips)
+# ---------------------------------------------------------------------------
+
+_VOICES_DIR = Path(__file__).parent / "voices"
+if _VOICES_DIR.exists():
+    app.mount("/voices", StaticFiles(directory=str(_VOICES_DIR)), name="voices")
 
 # ---------------------------------------------------------------------------
 # Serve compiled React SPA (production)

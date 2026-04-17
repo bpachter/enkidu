@@ -59,15 +59,17 @@ export function createChatSocket(
   onResponse: (msg: string) => void,
   onDone: () => void,
   onError: (e: string) => void,
+  onAudio?: (b64: string, fmt: string) => void,
 ): WebSocket {
   const ws = new WebSocket('ws://localhost:8000/ws/chat')
   ws.onmessage = (ev) => {
     const data = JSON.parse(ev.data)
-    if (data.type === 'step')     onStep(data.content)
-    if (data.type === 'token')    onToken(data.content)
-    if (data.type === 'response') onResponse(data.content)
-    if (data.type === 'done')     onDone()
-    if (data.type === 'error')    onError(data.content)
+    if (data.type === 'step')      onStep(data.content)
+    if (data.type === 'token')     onToken(data.content)
+    if (data.type === 'response')  onResponse(data.content)
+    if (data.type === 'done')      onDone()
+    if (data.type === 'error')     onError(data.content)
+    if (data.type === 'tts_audio' && onAudio) onAudio(data.data, data.format ?? 'wav')
   }
   return ws
 }

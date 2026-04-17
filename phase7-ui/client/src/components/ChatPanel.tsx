@@ -1,21 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+/**
+ * ChatPanel.tsx — unified chat + voice terminal
+ *
+ * Text input and voice input share the same message thread.
+ * Voice flow: mic → VAD → /ws/voice → Whisper → agent → edge-tts → MP3 playback
+ * Text flow:  input → /ws/chat → agent → streaming tokens
+ */
+
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore } from '../store'
 import { createChatSocket } from '../api'
 
+// ── Chat WebSocket (module-level singleton) ───────────────────────────────
+
 let chatSocket: WebSocket | null = null
 let pendingBotId: string | null = null
-
-// rAF-batched token buffer — accumulates tokens within one animation frame
-// then flushes to the store in a single setState call (~60 updates/sec max)
 let tokenBuffer = ''
 let rafPending  = false
 
 function flushTokenBuffer() {
   rafPending = false
   if (!tokenBuffer || !pendingBotId) { tokenBuffer = ''; return }
-  const buf = tokenBuffer
-  tokenBuffer = ''
-  const id = pendingBotId
+  const buf = tokenBuffer; tokenBuffer = ''
+  const id  = pendingBotId
   useStore.setState((s) => ({
     messages: s.messages.map((m) =>
       m.id === id ? { ...m, content: (m.content || '') + buf } : m
@@ -23,163 +29,507 @@ function flushTokenBuffer() {
   }))
 }
 
-function connectSocket() {
+function connectChatSocket() {
   if (chatSocket && chatSocket.readyState <= WebSocket.OPEN) return
-
   const { setBusy, appendStep } = useStore.getState()
-
   chatSocket = createChatSocket(
-    // onStep
-    (step) => {
-      if (pendingBotId) appendStep(pendingBotId, step)
-    },
-    // onToken — batched via requestAnimationFrame
-    (tok) => {
-      tokenBuffer += tok
-      if (!rafPending) {
-        rafPending = true
-        requestAnimationFrame(flushTokenBuffer)
-      }
-    },
-    // onResponse — used only for Claude tool-use (no tokens streamed)
+    (step)     => { if (pendingBotId) appendStep(pendingBotId, step) },
+    (tok)      => { tokenBuffer += tok; if (!rafPending) { rafPending = true; requestAnimationFrame(flushTokenBuffer) } },
     (response) => {
-      if (pendingBotId) {
-        useStore.setState((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === pendingBotId ? { ...m, content: response } : m
-          ),
-        }))
-      }
+      if (pendingBotId) useStore.setState((s) => ({
+        messages: s.messages.map((m) => m.id === pendingBotId ? { ...m, content: response } : m),
+      }))
     },
-    // onDone
-    () => {
-      // Flush any remaining buffered tokens before marking done
+    ()         => { flushTokenBuffer(); setBusy(false); pendingBotId = null },
+    (err)      => {
       flushTokenBuffer()
-      setBusy(false)
-      pendingBotId = null
+      if (pendingBotId) useStore.setState((s) => ({
+        messages: s.messages.map((m) => m.id === pendingBotId ? { ...m, content: `ERROR: ${err}` } : m),
+      }))
+      setBusy(false); pendingBotId = null
     },
-    // onError
-    (err) => {
-      flushTokenBuffer()
-      if (pendingBotId) {
-        useStore.setState((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === pendingBotId ? { ...m, content: `ERROR: ${err}` } : m
-          ),
-        }))
-      }
-      setBusy(false)
-      pendingBotId = null
-    },
+    (b64, fmt) => { playAudio(b64, fmt) },
   )
 }
 
-export default function ChatPanel() {
-  const messages              = useStore((s) => s.messages)
-  const busy                  = useStore((s) => s.busy)
-  const addMessage            = useStore((s) => s.addMessage)
-  const setBusy               = useStore((s) => s.setBusy)
-  const clearMessages         = useStore((s) => s.clearMessages)
-  const activeConversationId  = useStore((s) => s.activeConversationId)
+// ── VAD constants ─────────────────────────────────────────────────────────
 
-  const [input, setInput] = useState('')
-  const bottomRef = useRef<HTMLDivElement>(null)
+const SPEECH_THRESHOLD    = 0.012
+const SILENCE_THRESHOLD   = 0.008
+const SILENCE_DURATION_MS = 900
+const MIN_SPEECH_MS       = 400
+const VAD_POLL_MS         = 80
+
+// ── Audio helpers ─────────────────────────────────────────────────────────
+
+interface AudioDevice { deviceId: string; label: string }
+
+async function listMicDevices(): Promise<AudioDevice[]> {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()))
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    return devices.filter((d) => d.kind === 'audioinput')
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }))
+  } catch { return [] }
+}
+
+interface CaptureHandle {
+  audioCtx: AudioContext
+  stream:   MediaStream
+  chunks:   Float32Array[]
+  analyser: AnalyserNode
+  stop:     () => void
+}
+
+async function startCapture(deviceId?: string): Promise<CaptureHandle> {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { deviceId: deviceId ? { exact: deviceId } : undefined, channelCount: 1,
+             echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  })
+  const audioCtx  = new AudioContext()
+  const source    = audioCtx.createMediaStreamSource(stream)
+  const processor = audioCtx.createScriptProcessor(4096, 1, 1)
+  const analyser  = audioCtx.createAnalyser()
+  const silencer  = audioCtx.createGain()
+  analyser.fftSize = 256; silencer.gain.value = 0
+  const chunks: Float32Array[] = []
+  processor.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)))
+  source.connect(analyser); source.connect(processor)
+  processor.connect(silencer); silencer.connect(audioCtx.destination)
+  await audioCtx.resume()
+  const stop = () => { processor.disconnect(); silencer.disconnect(); source.disconnect(); stream.getTracks().forEach((t) => t.stop()); audioCtx.close() }
+  return { audioCtx, stream, chunks, analyser, stop }
+}
+
+function getRms(analyser: AnalyserNode): number {
+  const buf = new Float32Array(analyser.fftSize)
+  analyser.getFloatTimeDomainData(buf)
+  let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+  return Math.sqrt(sum / buf.length)
+}
+
+function chunksToBase64(chunks: Float32Array[]): { data: string; samples: number } {
+  const total = chunks.reduce((n, c) => n + c.length, 0)
+  const combined = new Float32Array(total)
+  let offset = 0; for (const c of chunks) { combined.set(c, offset); offset += c.length }
+  const bytes = new Uint8Array(combined.buffer)
+  let binary = ''; const STEP = 8192
+  for (let i = 0; i < bytes.length; i += STEP) binary += String.fromCharCode(...bytes.subarray(i, i + STEP))
+  return { data: btoa(binary), samples: total }
+}
+
+// Persistent AudioContext for TTS playback — survives across messages.
+// Resumed on first user interaction (mic click), stays running so playback
+// isn't blocked by the browser's autoplay policy even seconds later.
+let _playCtx: AudioContext | null = null
+
+function getPlayCtx(): AudioContext {
+  if (!_playCtx || _playCtx.state === 'closed') _playCtx = new AudioContext()
+  return _playCtx
+}
+
+function resumePlayCtx() {
+  const ctx = getPlayCtx()
+  if (ctx.state === 'suspended') ctx.resume()
+}
+
+async function playAudio(b64: string, _fmt: string = 'mp3'): Promise<void> {
+  const ctx = getPlayCtx()
+  if (ctx.state === 'suspended') await ctx.resume()
+  return new Promise((resolve) => {
+    try {
+      const bytes  = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer
+      ctx.decodeAudioData(bytes, (buf) => {
+        const src = ctx.createBufferSource()
+        src.buffer = buf
+        src.connect(ctx.destination)
+        src.onended = () => resolve()
+        src.start(0)
+      }, () => {
+        // decodeAudioData failed — fall back to <audio> element
+        const blob  = new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: 'audio/wav' })
+        const url   = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        audio.onended = () => { URL.revokeObjectURL(url); resolve() }
+        audio.onerror = () => { URL.revokeObjectURL(url); resolve() }
+        audio.play().catch(() => resolve())
+      })
+    } catch { resolve() }
+  })
+}
+
+// ── Waveform ─────────────────────────────────────────────────────────────
+
+function Waveform({ analyser, active }: { analyser: AnalyserNode | null; active: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef    = useRef<number>(0)
 
   useEffect(() => {
-    connectSocket()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    const W = canvas.width, H = canvas.height
+
+    const draw = () => {
+      rafRef.current = requestAnimationFrame(draw)
+      ctx.clearRect(0, 0, W, H)
+      if (!analyser || !active) {
+        ctx.strokeStyle = '#ff1a4030'; ctx.lineWidth = 1
+        ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke()
+        return
+      }
+      const freq = new Uint8Array(analyser.frequencyBinCount)
+      analyser.getByteFrequencyData(freq)
+      const half = Math.floor(freq.length / 2)
+      const barW = W / half
+      for (let i = 0; i < half; i++) {
+        const h = (freq[i] / 255) * H
+        const grad = ctx.createLinearGradient(0, H - h, 0, H)
+        grad.addColorStop(0, '#ff1a40cc'); grad.addColorStop(1, '#ff1a4022')
+        ctx.fillStyle = grad
+        ctx.fillRect(i * barW, H - h, Math.max(1, barW - 1), h)
+      }
+    }
+    draw()
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [analyser, active])
+
+  return <canvas ref={canvasRef} width={300} height={36} style={{ width: '100%', height: 36, display: 'block' }} />
+}
+
+// ── Component ─────────────────────────────────────────────────────────────
+
+type VoiceState = 'idle' | 'recording' | 'thinking' | 'speaking'
+
+export default function ChatPanel() {
+  const messages             = useStore((s) => s.messages)
+  const busy                 = useStore((s) => s.busy)
+  const addMessage           = useStore((s) => s.addMessage)
+  const setBusy              = useStore((s) => s.setBusy)
+  const clearMessages        = useStore((s) => s.clearMessages)
+  const activeConversationId = useStore((s) => s.activeConversationId)
+
+  const [input,        setInput]        = useState('')
+  const [voiceState,   setVoiceState]   = useState<VoiceState>('idle')
+  const [vadEnabled,   setVadEnabled]   = useState(true)
+  const [loopEnabled,  setLoopEnabled]  = useState(false)
+  const [ttsStatus,    setTtsStatus]    = useState('')   // 'speaking' | 'tts_error' | ''
+  const [micError,     setMicError]     = useState('')
+  const [devices,      setDevices]      = useState<AudioDevice[]>([])
+  const [selectedDev,  setSelectedDev]  = useState('')
+  const [showDevSel,   setShowDevSel]   = useState(false)
+  const [voiceProfiles, setVoiceProfiles] = useState<string[]>(['default'])
+  const [selectedVoice, setSelectedVoice] = useState('default')
+
+  const bottomRef       = useRef<HTMLDivElement>(null)
+  const voiceWsRef      = useRef<WebSocket | null>(null)
+  const captureRef      = useRef<CaptureHandle | null>(null)
+  const analyserRef     = useRef<AnalyserNode | null>(null)
+  const vadTimerRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const speechStartRef  = useRef<number | null>(null)
+  const silenceStartRef = useRef<number | null>(null)
+  const voiceBotIdRef   = useRef<string | null>(null)
+  const voiceStateRef   = useRef<VoiceState>('idle')
+  const loopRef         = useRef(false)
+
+  useEffect(() => { voiceStateRef.current = voiceState }, [voiceState])
+  useEffect(() => { loopRef.current = loopEnabled }, [loopEnabled])
+
+  // ── Chat socket ──────────────────────────────────────────────────────
+
+  useEffect(() => { connectChatSocket() }, [])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // ── Mic devices ──────────────────────────────────────────────────────
+
+  useEffect(() => {
+    listMicDevices().then((devs) => {
+      setDevices(devs)
+      const headset = devs.find((d) => /headset|headphone|jabra|bose|sony|logitech|hyper|blue|yeti|rode/i.test(d.label))
+      setSelectedDev(headset?.deviceId ?? devs[0]?.deviceId ?? '')
+    })
   }, [])
 
+  // ── Voice profiles ────────────────────────────────────────────────────
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    fetch('http://localhost:8000/api/voices')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.voices?.length) setVoiceProfiles(d.voices)
+        if (d.active) setSelectedVoice(d.active)
+      })
+      .catch(() => {/* server may not be up yet */})
+  }, [])
+
+  const handleVoiceChange = (profile: string) => {
+    setSelectedVoice(profile)
+    fetch('http://localhost:8000/api/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile }),
+    }).catch(() => {/* non-critical */})
+  }
+
+  // ── Voice WebSocket ──────────────────────────────────────────────────
+
+  const connectVoiceWs = useCallback(() => {
+    if (voiceWsRef.current && voiceWsRef.current.readyState <= WebSocket.OPEN) return
+    const ws = new WebSocket('ws://localhost:8000/ws/voice')
+
+    ws.onmessage = async (ev) => {
+      const msg = JSON.parse(ev.data)
+
+      if (msg.type === 'transcript') {
+        // Add user message from transcript
+        const userId = crypto.randomUUID()
+        const botId  = crypto.randomUUID()
+        voiceBotIdRef.current = botId
+        pendingBotId = botId
+        addMessage({ id: userId, role: 'user',  content: `🎤 ${msg.text}`, ts: Date.now() })
+        addMessage({ id: botId,  role: 'bot',   content: '', ts: Date.now() })
+        setBusy(true)
+        setVoiceState('thinking')
+
+      } else if (msg.type === 'step') {
+        if (voiceBotIdRef.current) useStore.getState().appendStep(voiceBotIdRef.current, msg.content)
+
+      } else if (msg.type === 'token') {
+        tokenBuffer += msg.content
+        if (!rafPending) { rafPending = true; requestAnimationFrame(flushTokenBuffer) }
+
+      } else if (msg.type === 'response') {
+        if (voiceBotIdRef.current) useStore.setState((s) => ({
+          messages: s.messages.map((m) => m.id === voiceBotIdRef.current ? { ...m, content: msg.content } : m),
+        }))
+
+      } else if (msg.type === 'tts_audio') {
+        setVoiceState('speaking')
+        setTtsStatus('speaking')
+        await playAudio(msg.data, msg.format ?? 'mp3')
+        setTtsStatus('')
+
+      } else if (msg.type === 'tts_error') {
+        setTtsStatus(`TTS: ${msg.content}`)
+        setTimeout(() => setTtsStatus(''), 3000)
+
+      } else if (msg.type === 'done') {
+        flushTokenBuffer()
+        setBusy(false)
+        pendingBotId = null
+        voiceBotIdRef.current = null
+        setVoiceState('idle')
+        setTtsStatus('')
+        if (loopRef.current) setTimeout(() => startRecording(), 400)
+
+      } else if (msg.type === 'error') {
+        setMicError(msg.content)
+        setBusy(false); pendingBotId = null; voiceBotIdRef.current = null
+        setVoiceState('idle')
+      }
+    }
+    ws.onclose = () => { voiceWsRef.current = null }
+    ws.onerror = () => setMicError('Voice WS error — is the server running?')
+    voiceWsRef.current = ws
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addMessage, setBusy])
+
+  useEffect(() => {
+    connectVoiceWs()
+    return () => { voiceWsRef.current?.close(); voiceWsRef.current = null }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── VAD ──────────────────────────────────────────────────────────────
+
+  const stopVad = useCallback(() => {
+    if (vadTimerRef.current) { clearInterval(vadTimerRef.current); vadTimerRef.current = null }
+    speechStartRef.current = null; silenceStartRef.current = null
+  }, [])
+
+  const sendAudio = useCallback((capture: CaptureHandle) => {
+    captureRef.current = null; analyserRef.current = null
+    const actualRate = capture.audioCtx.sampleRate
+    capture.stop()
+    const { data, samples } = chunksToBase64(capture.chunks)
+    if (samples < 800) {
+      setMicError(`No audio captured (${samples} samples). Check mic.`)
+      setVoiceState('idle'); return
+    }
+    const payload = JSON.stringify({ type: 'audio', data, rate: actualRate, voice_profile: selectedVoice })
+    if (!voiceWsRef.current || voiceWsRef.current.readyState !== WebSocket.OPEN) {
+      connectVoiceWs()
+      setTimeout(() => voiceWsRef.current?.send(payload), 300)
+    } else {
+      voiceWsRef.current.send(payload)
+    }
+    setVoiceState('thinking')
+  }, [connectVoiceWs, selectedVoice])
+
+  const startRecording = useCallback(async () => {
+    if (voiceStateRef.current !== 'idle') return
+    setMicError(''); setTtsStatus('')
+    resumePlayCtx()   // warm up AudioContext while we still have the user gesture
+    try {
+      const capture = await startCapture(selectedDev || undefined)
+      captureRef.current = capture; analyserRef.current = capture.analyser
+      setVoiceState('recording')
+
+      if (vadEnabled) {
+        speechStartRef.current = null; silenceStartRef.current = null
+        vadTimerRef.current = setInterval(() => {
+          if (voiceStateRef.current !== 'recording') { stopVad(); return }
+          const rms = getRms(capture.analyser)
+          const now = Date.now()
+          if (rms > SPEECH_THRESHOLD) { if (!speechStartRef.current) speechStartRef.current = now; silenceStartRef.current = null }
+          else if (rms < SILENCE_THRESHOLD && speechStartRef.current) {
+            if (!silenceStartRef.current) silenceStartRef.current = now
+            const silenceDur = now - silenceStartRef.current
+            const speechDur  = silenceStartRef.current - speechStartRef.current
+            if (silenceDur >= SILENCE_DURATION_MS && speechDur >= MIN_SPEECH_MS) { stopVad(); sendAudio(capture) }
+          }
+        }, VAD_POLL_MS)
+      }
+    } catch (e: unknown) {
+      setMicError(`Mic error: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [selectedDev, vadEnabled, stopVad, sendAudio])
+
+  const stopRecording = useCallback(() => {
+    stopVad()
+    const capture = captureRef.current
+    if (!capture) return
+    sendAudio(capture)
+  }, [stopVad, sendAudio])
+
+  const handleMicClick = useCallback(() => {
+    if (voiceState === 'recording') stopRecording()
+    else if (voiceState === 'idle' && !busy) startRecording()
+  }, [voiceState, busy, startRecording, stopRecording])
+
+  // Space bar PTT
+  useEffect(() => {
+    const onDown = (e: KeyboardEvent) => { if (e.code === 'Space' && e.target === document.body && voiceState === 'idle' && !busy) { e.preventDefault(); startRecording() } }
+    const onUp   = (e: KeyboardEvent) => { if (e.code === 'Space' && voiceState === 'recording') { e.preventDefault(); stopRecording() } }
+    window.addEventListener('keydown', onDown); window.addEventListener('keyup', onUp)
+    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp) }
+  }, [voiceState, busy, startRecording, stopRecording])
+
+  // ── Text send ────────────────────────────────────────────────────────
 
   function send() {
     const text = input.trim()
     if (!text || busy || !chatSocket) return
-    if (chatSocket.readyState !== WebSocket.OPEN) {
-      connectSocket()
-      return
-    }
-
-    const userId = crypto.randomUUID()
-    const botId  = crypto.randomUUID()
+    resumePlayCtx()
+    if (chatSocket.readyState !== WebSocket.OPEN) { connectChatSocket(); return }
+    const userId = crypto.randomUUID(); const botId = crypto.randomUUID()
     pendingBotId = botId
-
     addMessage({ id: userId, role: 'user', content: text, ts: Date.now() })
     addMessage({ id: botId,  role: 'bot',  content: '',   ts: Date.now() })
-    setBusy(true)
-    setInput('')
-
-    chatSocket.send(JSON.stringify({
-      message: text,
-      ...(activeConversationId ? { conversation_id: activeConversationId } : {}),
-    }))
+    setBusy(true); setInput('')
+    chatSocket.send(JSON.stringify({ message: text, voice_profile: selectedVoice, ...(activeConversationId ? { conversation_id: activeConversationId } : {}) }))
   }
+
+  // ── Render ───────────────────────────────────────────────────────────
+
+  const isRecording = voiceState === 'recording'
+  const isSpeaking  = voiceState === 'speaking'
+  const micColor    = isRecording ? 'var(--red)' : isSpeaking ? 'var(--green)' : busy ? 'var(--amber-dim)' : 'var(--amber)'
 
   return (
     <div className="panel panel-chat" style={{ flex: 1, minHeight: 0 }}>
       <div className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>
           CHAT TERMINAL
-          {activeConversationId && (
-            <span style={{ fontSize: 10, color: 'var(--cyan)', marginLeft: 8 }}>· CONTINUATION</span>
-          )}
+          {activeConversationId && <span style={{ fontSize: 10, color: 'var(--cyan)', marginLeft: 8 }}>· CONTINUATION</span>}
+          {isRecording && <span style={{ fontSize: 10, color: 'var(--red)', marginLeft: 8, animation: 'pulse-text 0.8s infinite' }}>· LISTENING</span>}
+          {isSpeaking  && <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 8 }}>· SPEAKING</span>}
+          {voiceState === 'thinking' && <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 8 }}>· PROCESSING</span>}
         </span>
-        {messages.length > 0 && (
-          <button
-            onClick={() => clearMessages()}
-            style={{
-              background: 'none', border: '1px solid var(--border)', color: 'var(--white-dim)',
-              fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            NEW
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {ttsStatus && (
+            <span style={{ fontSize: 10, color: ttsStatus.startsWith('TTS:') ? 'var(--red)' : 'var(--green)', letterSpacing: '0.1em' }}>
+              {ttsStatus.startsWith('TTS:') ? ttsStatus : '♪'}
+            </span>
+          )}
+          {messages.length > 0 && (
+            <button onClick={() => clearMessages()} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--white-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', cursor: 'pointer', letterSpacing: '0.08em' }}>
+              NEW
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Messages */}
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="dim" style={{ alignSelf: 'center', marginTop: 40, textAlign: 'center', lineHeight: 2 }}>
-            <div style={{ fontSize: 32, fontFamily: 'var(--font-display)', color: 'var(--amber)', opacity: 0.3 }}>
-              ENKIDU ONLINE
-            </div>
-            <div style={{ fontSize: 11, opacity: 0.4 }}>AWAITING INPUT_</div>
+            <div style={{ fontSize: 32, fontFamily: 'var(--font-display)', color: 'var(--amber)', opacity: 0.3 }}>ENKIDU ONLINE</div>
+            <div style={{ fontSize: 11, opacity: 0.4 }}>TYPE OR SPEAK TO BEGIN_</div>
           </div>
         )}
-
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.role}`}>
             <span className="msg-label">
-              {m.role === 'user' ? 'YOU' : 'ENKIDU'} ·{' '}
-              {new Date(m.ts).toLocaleTimeString('en-US', { hour12: false })}
+              {m.role === 'user' ? 'YOU' : 'ENKIDU'} · {new Date(m.ts).toLocaleTimeString('en-US', { hour12: false })}
             </span>
-
             {m.steps && m.steps.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 4 }}>
-                {m.steps.map((s, i) => (
-                  <span key={i} className="msg-step">⟩ {s}</span>
-                ))}
+                {m.steps.map((s, i) => <span key={i} className="msg-step">⟩ {s}</span>)}
               </div>
             )}
-
             <div className="msg-bubble">
               {m.content || (m.role === 'bot' && busy && pendingBotId === m.id
                 ? <span className="msg-typing">···</span>
-                : m.content
-              )}
+                : m.content)}
             </div>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
-      <div className="chat-input-row">
+      {/* Waveform — only visible when recording */}
+      {isRecording && (
+        <div style={{ flexShrink: 0, background: '#06070c', borderTop: '1px solid var(--border)' }}>
+          <Waveform analyser={analyserRef.current} active={isRecording} />
+        </div>
+      )}
+
+      {/* Mic error */}
+      {micError && (
+        <div style={{ flexShrink: 0, padding: '4px 12px', fontSize: 11, color: 'var(--red)', background: 'rgba(255,26,64,0.07)', borderTop: '1px solid var(--red)' }}>
+          {micError}
+          <button onClick={() => setMicError('')} style={{ marginLeft: 8, background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11 }}>✕</button>
+        </div>
+      )}
+
+      {/* Input row */}
+      <div className="chat-input-row" style={{ gap: 6 }}>
+        {/* Mic button */}
+        <button
+          onClick={handleMicClick}
+          disabled={busy && !isRecording}
+          title={isRecording ? 'Stop / Space' : 'Speak / Space'}
+          style={{
+            flexShrink: 0, width: 34, height: 34, borderRadius: '50%',
+            background: isRecording ? 'rgba(255,26,64,0.15)' : 'var(--bg-input)',
+            border: `1.5px solid ${micColor}`,
+            color: micColor, fontSize: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: (busy && !isRecording) ? 'default' : 'pointer',
+            boxShadow: isRecording ? '0 0 10px rgba(255,26,64,0.4)' : isSpeaking ? '0 0 8px rgba(57,211,83,0.3)' : 'none',
+            transition: 'all 0.15s',
+            animation: isRecording ? 'pulse-ring-sm 1.2s ease-out infinite' : 'none',
+            padding: 0,
+          }}
+        >
+          {isRecording ? '⏹' : isSpeaking ? '🔊' : '🎤'}
+        </button>
+
         <span className="chat-prefix">&gt;_</span>
         <input
           className="chat-input"
-          placeholder="enter query..."
+          placeholder={isRecording ? 'listening…' : 'enter query or speak…'}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && send()}
@@ -190,6 +540,89 @@ export default function ChatPanel() {
           SEND
         </button>
       </div>
+
+      {/* Voice controls strip */}
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+        padding: '4px 10px', borderTop: '1px solid var(--border)',
+        background: '#060810',
+      }}>
+        <VoiceToggle label="VAD"  on={vadEnabled}  onClick={() => setVadEnabled(v => !v)}  title="Auto-stop on silence" />
+        <VoiceToggle label="LOOP" on={loopEnabled} onClick={() => setLoopEnabled(v => !v)} title="Auto-listen after response" />
+
+        {/* Voice profile selector */}
+        <select
+          value={selectedVoice}
+          onChange={(e) => handleVoiceChange(e.target.value)}
+          disabled={isRecording || busy}
+          title="TTS voice profile"
+          style={{
+            marginLeft: 4, fontSize: 10, padding: '1px 4px',
+            background: selectedVoice !== 'default' ? 'rgba(0,200,255,0.08)' : 'var(--bg-input)',
+            border: `1px solid ${selectedVoice !== 'default' ? 'var(--cyan)' : 'var(--border)'}`,
+            color: selectedVoice !== 'default' ? 'var(--cyan)' : 'var(--amber-dim)',
+            fontFamily: 'var(--font-mono)', cursor: 'pointer', outline: 'none',
+            maxWidth: 100,
+          }}
+        >
+          {voiceProfiles.map((v) => (
+            <option key={v} value={v}>{v.toUpperCase()}</option>
+          ))}
+        </select>
+
+        {/* Device selector toggle */}
+        <button
+          onClick={() => setShowDevSel(v => !v)}
+          title="Microphone settings"
+          style={{ marginLeft: 4, padding: '1px 6px', fontSize: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--amber-dim)', cursor: 'pointer' }}
+        >
+          🎤 {showDevSel ? '▲' : '▼'}
+        </button>
+
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--amber-dim)', letterSpacing: '0.08em' }}>
+          {isRecording ? vadEnabled ? 'AUTO-STOP · SPACE TO SEND' : 'SPACE TO SEND'
+            : isSpeaking ? '♪ SPEAKING'
+            : 'SPACE TO SPEAK'}
+        </span>
+      </div>
+
+      {/* Device selector (collapsible) */}
+      {showDevSel && devices.length > 0 && (
+        <div style={{ flexShrink: 0, padding: '6px 10px', borderTop: '1px solid var(--border)', background: '#06070c' }}>
+          <div style={{ fontSize: 10, color: 'var(--amber-dim)', marginBottom: 4, letterSpacing: '0.1em' }}>INPUT DEVICE</div>
+          <select
+            value={selectedDev}
+            onChange={(e) => setSelectedDev(e.target.value)}
+            disabled={isRecording || busy}
+            style={{ width: '100%', background: 'var(--bg-input)', color: 'var(--amber)', border: '1px solid var(--border)', padding: '3px 6px', fontSize: 11, fontFamily: 'var(--font-mono)', outline: 'none', cursor: 'pointer' }}
+          >
+            {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+          </select>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes pulse-ring-sm {
+          0%   { box-shadow: 0 0 0 0 rgba(255,26,64,0.5); }
+          70%  { box-shadow: 0 0 0 6px rgba(255,26,64,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,26,64,0); }
+        }
+        @keyframes pulse-text {
+          0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
+  )
+}
+
+function VoiceToggle({ label, on, onClick, title }: { label: string; on: boolean; onClick: () => void; title?: string }) {
+  return (
+    <button onClick={onClick} title={title} style={{
+      padding: '1px 7px', fontSize: 10, letterSpacing: '0.1em',
+      background: on ? 'rgba(57,211,83,0.1)' : 'transparent',
+      border: `1px solid ${on ? 'var(--green)' : 'var(--border)'}`,
+      color: on ? 'var(--green)' : 'var(--amber-dim)',
+      cursor: 'pointer', transition: 'all 0.12s',
+    }}>{label}</button>
   )
 }

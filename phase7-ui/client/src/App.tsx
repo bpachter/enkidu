@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import Header          from './components/Header'
-import ChatPanel       from './components/ChatPanel'
-import SystemMiniPanel   from './components/SystemMiniPanel'
+import Header           from './components/Header'
+import ChatPanel        from './components/ChatPanel'
+import SystemMiniPanel  from './components/SystemMiniPanel'
 import GpuHistoryPanel  from './components/GpuHistoryPanel'
 import ModelParamsPanel from './components/ModelParamsPanel'
-import MarketPanel     from './components/MarketPanel'
-import MemoryPanel     from './components/MemoryPanel'
-import HistoryPanel    from './components/HistoryPanel'
-import VoicePanel      from './components/VoicePanel'
-import { useStore }    from './store'
+import MarketPanel      from './components/MarketPanel'
+import MemoryPanel      from './components/MemoryPanel'
+import HistoryPanel     from './components/HistoryPanel'
+import { useStore }     from './store'
 import { createGpuSocket } from './api'
 
 type RightBottomTab = 'params' | 'memory'
@@ -40,22 +39,21 @@ export default function App() {
       {/* ── Row 1: header ── */}
       <Header />
 
-      {/* ── Left column: Voice + compact system stats ── */}
-      <div className="col-left">
-        <VoicePanel />
-        <SystemMiniPanel />
-      </div>
-
-      {/* ── Center column: Chat + History ── */}
-      <div className="col-center">
+      {/* ── Left column: Chat (with integrated voice) + History ── */}
+      <div className="col-chat">
         <ChatPanel />
         <div style={{ flexShrink: 0, height: 180, borderTop: '1px solid var(--border)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <HistoryPanel />
         </div>
       </div>
 
-      {/* ── Right column: Market (top) + Params/Memory tabs (bottom) ── */}
+      {/* ── Right column: System strip + Market + Params/Memory + GPU detail ── */}
       <div className="col-right">
+        {/* Compact system stats strip */}
+        <div style={{ flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          <SystemMiniPanel />
+        </div>
+
         {/* Market — takes remaining space */}
         <div style={{ flex: 3, minHeight: 0, overflow: 'hidden' }}>
           <MarketPanel />
@@ -64,18 +62,8 @@ export default function App() {
         {/* Params / Memory tab strip */}
         <div style={{ flex: 2, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--border)', overflow: 'hidden' }}>
           <div className="tab-bar">
-            <button
-              className={`tab-btn ${rbTab === 'params' ? 'active' : ''}`}
-              onClick={() => setRbTab('params')}
-            >
-              PARAMS
-            </button>
-            <button
-              className={`tab-btn ${rbTab === 'memory' ? 'active' : ''}`}
-              onClick={() => setRbTab('memory')}
-            >
-              MEMORY
-            </button>
+            <button className={`tab-btn ${rbTab === 'params' ? 'active' : ''}`} onClick={() => setRbTab('params')}>PARAMS</button>
+            <button className={`tab-btn ${rbTab === 'memory' ? 'active' : ''}`} onClick={() => setRbTab('memory')}>MEMORY</button>
           </div>
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
             {rbTab === 'params' && <ModelParamsPanel />}
@@ -83,13 +71,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Full GPU detail panel — accessible via a collapsible */}
+        {/* GPU detail sparklines */}
         <details style={{ flexShrink: 0, borderTop: '1px solid var(--border)' }}>
-          <summary style={{
-            padding: '4px 12px', fontSize: 10, letterSpacing: '0.12em',
-            color: 'var(--amber-dim)', cursor: 'pointer', listStyle: 'none',
-            background: 'var(--bg-panel)',
-          }}>
+          <summary style={{ padding: '4px 12px', fontSize: 10, letterSpacing: '0.12em', color: 'var(--amber-dim)', cursor: 'pointer', listStyle: 'none', background: 'var(--bg-panel)' }}>
             ▸ GPU DETAIL
           </summary>
           <div style={{ maxHeight: 320, overflow: 'auto' }}>
