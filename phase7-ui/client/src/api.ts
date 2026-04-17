@@ -69,7 +69,10 @@ export function createChatSocket(
     if (data.type === 'response')  onResponse(data.content)
     if (data.type === 'done')      onDone()
     if (data.type === 'error')     onError(data.content)
-    if (data.type === 'tts_audio' && onAudio) onAudio(data.data, data.format ?? 'wav')
+    // tts_chunk: sentence-by-sentence streaming (primary path)
+    // tts_audio: single-shot legacy (kept for backward compat)
+    if ((data.type === 'tts_chunk' || data.type === 'tts_audio') && onAudio)
+      onAudio(data.data, data.format ?? 'wav')
   }
   return ws
 }

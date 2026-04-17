@@ -48,7 +48,7 @@ function connectChatSocket() {
       }))
       setBusy(false); pendingBotId = null
     },
-    (b64, fmt) => { playAudio(b64, fmt) },
+    (b64, fmt) => { enqueueAudio(b64, fmt) },
   )
 }
 
@@ -133,12 +133,12 @@ function resumePlayCtx() {
   if (ctx.state === 'suspended') ctx.resume()
 }
 
-async function playAudio(b64: string, _fmt: string = 'mp3'): Promise<void> {
+async function playAudio(b64: string, _fmt: string = 'wav'): Promise<void> {
   const ctx = getPlayCtx()
   if (ctx.state === 'suspended') await ctx.resume()
   return new Promise((resolve) => {
     try {
-      const bytes  = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer
       ctx.decodeAudioData(bytes, (buf) => {
         const src = ctx.createBufferSource()
         src.buffer = buf
@@ -156,6 +156,36 @@ async function playAudio(b64: string, _fmt: string = 'mp3'): Promise<void> {
       })
     } catch { resolve() }
   })
+}
+
+// ── Audio queue — sequential chunk playback ───────────────────────────────
+// Sentences arrive as tts_chunk messages with seq numbers. We queue them and
+// play in order so sentence 1 starts while the server is synthesizing sentence 2.
+
+interface AudioItem { b64: string; fmt: string }
+
+const _audioQueue: AudioItem[] = []
+let   _audioPlaying = false
+
+async function _drainAudioQueue(): Promise<void> {
+  if (_audioPlaying) return
+  _audioPlaying = true
+  while (_audioQueue.length > 0) {
+    const item = _audioQueue.shift()!
+    await playAudio(item.b64, item.fmt)
+  }
+  _audioPlaying = false
+}
+
+/** Push a chunk to the playback queue and start draining if idle. */
+function enqueueAudio(b64: string, fmt: string): void {
+  _audioQueue.push({ b64, fmt })
+  _drainAudioQueue()   // fire-and-forget — guards itself with _audioPlaying flag
+}
+
+/** Stop any in-flight audio and clear the queue (e.g., when user starts speaking). */
+function clearAudioQueue(): void {
+  _audioQueue.length = 0
 }
 
 // ── Waveform ─────────────────────────────────────────────────────────────
@@ -303,11 +333,13 @@ export default function ChatPanel() {
           messages: s.messages.map((m) => m.id === voiceBotIdRef.current ? { ...m, content: msg.content } : m),
         }))
 
-      } else if (msg.type === 'tts_audio') {
-        setVoiceState('speaking')
-        setTtsStatus('speaking')
-        await playAudio(msg.data, msg.format ?? 'mp3')
-        setTtsStatus('')
+      } else if (msg.type === 'tts_chunk' || msg.type === 'tts_audio') {
+        // First chunk: transition to speaking state
+        if (voiceStateRef.current !== 'speaking') {
+          setVoiceState('speaking')
+          setTtsStatus('speaking')
+        }
+        enqueueAudio(msg.data, msg.format ?? 'wav')
 
       } else if (msg.type === 'tts_error') {
         setTtsStatus(`TTS: ${msg.content}`)
@@ -318,9 +350,17 @@ export default function ChatPanel() {
         setBusy(false)
         pendingBotId = null
         voiceBotIdRef.current = null
-        setVoiceState('idle')
-        setTtsStatus('')
-        if (loopRef.current) setTimeout(() => startRecording(), 400)
+        // Wait for audio queue to finish before going idle, so loop-mode
+        // doesn't start recording while Enkidu is still speaking.
+        const waitAndReset = async () => {
+          while (_audioPlaying || _audioQueue.length > 0) {
+            await new Promise<void>((r) => setTimeout(r, 80))
+          }
+          setVoiceState('idle')
+          setTtsStatus('')
+          if (loopRef.current) setTimeout(() => startRecording(), 300)
+        }
+        waitAndReset()
 
       } else if (msg.type === 'error') {
         setMicError(msg.content)
@@ -369,7 +409,8 @@ export default function ChatPanel() {
   const startRecording = useCallback(async () => {
     if (voiceStateRef.current !== 'idle') return
     setMicError(''); setTtsStatus('')
-    resumePlayCtx()   // warm up AudioContext while we still have the user gesture
+    clearAudioQueue()  // stop any in-progress TTS before recording
+    resumePlayCtx()    // warm up AudioContext while we still have the user gesture
     try {
       const capture = await startCapture(selectedDev || undefined)
       captureRef.current = capture; analyserRef.current = capture.analyser

@@ -553,18 +553,30 @@ async def ws_chat(ws: WebSocket):
                 await ws.send_json({"type": "done"})
                 continue
 
-            # TTS — speak the response
+            # TTS — sentence-split streaming: client starts playing sentence 0
+            # while the server is synthesizing sentence 1, etc.
             if tts_enabled and voice and final_text.strip():
+                seq = 0
+
+                async def _send_chunk(audio_bytes: bytes, fmt: str, _seq: int) -> None:
+                    nonlocal seq
+                    await ws.send_json({
+                        "type":   "tts_chunk",
+                        "data":   base64.b64encode(audio_bytes).decode(),
+                        "format": fmt,
+                        "seq":    _seq,
+                    })
+                    seq += 1
+
                 try:
-                    audio_bytes, audio_fmt = await asyncio.wait_for(
-                        voice.synthesize(final_text, voice_profile=voice_profile_req), timeout=180.0
+                    await asyncio.wait_for(
+                        voice.synthesize_streaming(
+                            final_text,
+                            _send_chunk,
+                            voice_profile=voice_profile_req,
+                        ),
+                        timeout=180.0,
                     )
-                    if audio_bytes:
-                        await ws.send_json({
-                            "type": "tts_audio",
-                            "data": base64.b64encode(audio_bytes).decode(),
-                            "format": audio_fmt,
-                        })
                 except Exception as e:
                     logger.warning(f"Chat TTS error: {e}")
 
@@ -661,22 +673,26 @@ async def ws_voice(ws: WebSocket):
                     await ws.send_json({"type": "done"})
                     continue
 
-            # ── 3. TTS ─────────────────────────────────────────────────────
+            # ── 3. TTS — sentence streaming ────────────────────────────────
             await ws.send_json({"type": "status", "content": "Speaking…"})
 
+            async def _send_voice_chunk(audio_bytes: bytes, fmt: str, seq: int) -> None:
+                await ws.send_json({
+                    "type":   "tts_chunk",
+                    "data":   base64.b64encode(audio_bytes).decode(),
+                    "format": fmt,
+                    "seq":    seq,
+                })
+
             try:
-                audio_bytes, audio_fmt = await asyncio.wait_for(
-                    voice.synthesize(final_text, voice_profile=voice_profile), timeout=180.0
+                await asyncio.wait_for(
+                    voice.synthesize_streaming(
+                        final_text,
+                        _send_voice_chunk,
+                        voice_profile=voice_profile,
+                    ),
+                    timeout=180.0,
                 )
-                if audio_bytes:
-                    await ws.send_json({
-                        "type": "tts_audio",
-                        "data": base64.b64encode(audio_bytes).decode(),
-                        "format": audio_fmt,
-                    })
-                else:
-                    logger.warning("TTS returned empty audio")
-                    await ws.send_json({"type": "tts_error", "content": "TTS unavailable"})
             except asyncio.TimeoutError:
                 logger.error("TTS timed out after 180s")
                 await ws.send_json({"type": "tts_error", "content": "TTS timed out"})
