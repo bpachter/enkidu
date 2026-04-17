@@ -60,6 +60,7 @@ export function createChatSocket(
   onDone: () => void,
   onError: (e: string) => void,
   onAudio?: (b64: string, fmt: string) => void,
+  onTtsError?: (msg: string) => void,
 ): WebSocket {
   const ws = new WebSocket('ws://localhost:8000/ws/chat')
   ws.onmessage = (ev) => {
@@ -69,6 +70,7 @@ export function createChatSocket(
     if (data.type === 'response')  onResponse(data.content)
     if (data.type === 'done')      onDone()
     if (data.type === 'error')     onError(data.content)
+    if (data.type === 'tts_error' && onTtsError) onTtsError(data.content)
     // tts_chunk: sentence-by-sentence streaming (primary path)
     // tts_audio: single-shot legacy (kept for backward compat)
     if ((data.type === 'tts_chunk' || data.type === 'tts_audio') && onAudio)

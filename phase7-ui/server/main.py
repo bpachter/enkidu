@@ -556,29 +556,40 @@ async def ws_chat(ws: WebSocket):
             # TTS — sentence-split streaming: client starts playing sentence 0
             # while the server is synthesizing sentence 1, etc.
             if tts_enabled and voice and final_text.strip():
-                seq = 0
+                if not hasattr(voice, "synthesize_streaming"):
+                    # Server is running old voice.py — needs restart
+                    logger.error("voice.py missing synthesize_streaming — restart the server")
+                    await ws.send_json({"type": "tts_error", "content": "TTS: restart server (old voice.py loaded)"})
+                else:
+                    seq = 0
 
-                async def _send_chunk(audio_bytes: bytes, fmt: str, _seq: int) -> None:
-                    nonlocal seq
-                    await ws.send_json({
-                        "type":   "tts_chunk",
-                        "data":   base64.b64encode(audio_bytes).decode(),
-                        "format": fmt,
-                        "seq":    _seq,
-                    })
-                    seq += 1
+                    async def _send_chunk(audio_bytes: bytes, fmt: str, _seq: int) -> None:
+                        nonlocal seq
+                        await ws.send_json({
+                            "type":   "tts_chunk",
+                            "data":   base64.b64encode(audio_bytes).decode(),
+                            "format": fmt,
+                            "seq":    _seq,
+                        })
+                        seq += 1
 
-                try:
-                    await asyncio.wait_for(
-                        voice.synthesize_streaming(
-                            final_text,
-                            _send_chunk,
-                            voice_profile=voice_profile_req,
-                        ),
-                        timeout=180.0,
-                    )
-                except Exception as e:
-                    logger.warning(f"Chat TTS error: {e}")
+                    try:
+                        logger.info(f"TTS: synthesizing {len(final_text)} chars (profile={voice_profile_req!r})")
+                        await asyncio.wait_for(
+                            voice.synthesize_streaming(
+                                final_text,
+                                _send_chunk,
+                                voice_profile=voice_profile_req,
+                            ),
+                            timeout=180.0,
+                        )
+                        if seq == 0:
+                            # synthesize_streaming ran but sent nothing — all engines failed
+                            logger.warning("TTS: synthesize_streaming produced no audio chunks")
+                            await ws.send_json({"type": "tts_error", "content": "TTS: no audio produced (check server logs)"})
+                    except Exception as e:
+                        logger.error(f"Chat TTS error: {e}", exc_info=True)
+                        await ws.send_json({"type": "tts_error", "content": f"TTS error: {e}"})
 
             await ws.send_json({"type": "done"})
 

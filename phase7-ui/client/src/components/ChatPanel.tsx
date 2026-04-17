@@ -16,6 +16,7 @@ let chatSocket: WebSocket | null = null
 let pendingBotId: string | null = null
 let tokenBuffer = ''
 let rafPending  = false
+let _onChatTtsError: ((msg: string) => void) | null = null
 
 function flushTokenBuffer() {
   rafPending = false
@@ -29,7 +30,8 @@ function flushTokenBuffer() {
   }))
 }
 
-function connectChatSocket() {
+function connectChatSocket(onTtsError?: (msg: string) => void) {
+  if (onTtsError) _onChatTtsError = onTtsError
   if (chatSocket && chatSocket.readyState <= WebSocket.OPEN) return
   const { setBusy, appendStep } = useStore.getState()
   chatSocket = createChatSocket(
@@ -49,6 +51,7 @@ function connectChatSocket() {
       setBusy(false); pendingBotId = null
     },
     (b64, fmt) => { enqueueAudio(b64, fmt) },
+    (msg)      => { if (_onChatTtsError) _onChatTtsError(msg) },
   )
 }
 
@@ -267,7 +270,12 @@ export default function ChatPanel() {
 
   // ── Chat socket ──────────────────────────────────────────────────────
 
-  useEffect(() => { connectChatSocket() }, [])
+  useEffect(() => {
+    connectChatSocket((msg) => {
+      setTtsStatus(`TTS: ${msg}`)
+      setTimeout(() => setTtsStatus(''), 4000)
+    })
+  }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   // ── Mic devices ──────────────────────────────────────────────────────
