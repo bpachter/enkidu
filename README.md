@@ -118,7 +118,7 @@ Tool dispatch (Claude path)
 [RGB keyboard soft blue at idle; deep purple / galaxy swirl during inference]
 [Windows Task Scheduler: daily signal log + weekly alert push]
 
-Voice pipeline (Phase 8)
+Voice pipeline (Phase 7)
     Microphone (Web Audio API, native sample rate, float32 PCM)
     → VAD auto-stop (AnalyserNode RMS threshold, 900ms silence window)
     → WebSocket /ws/voice (base64 PCM + sample rate)
@@ -134,8 +134,8 @@ Voice pipeline (Phase 8)
     → Character FX chain (pitch / formant / EQ / reverb / bitcrush) applied post-synthesis
     → [optional] auto-restart listening for hands-free conversation loop
 
-    Voice profiles: drop any 5-8s clean .wav into phase7-ui/server/voices/.
-    Auto-scan from YouTube: python phase7-ui/server/scan_bmo_voice.py <url> --out <name>
+    Voice profiles: drop any 5-8s clean .wav into phase6-ui/server/voices/.
+    Auto-scan from YouTube: python phase6-ui/server/scan_bmo_voice.py <url> --out <name>
 ```
 
 ---
@@ -149,9 +149,8 @@ Voice pipeline (Phase 8)
 | [Phase 3](./phase3-agents/) | ReAct agent loop + Telegram interface + HMM regime detection | ✅ Complete |
 | [Phase 4](./phase4-memory/) | Persistent memory via ChromaDB + SQLite + codebase RAG | ✅ Complete |
 | [Phase 5](./phase5-intelligence/) | Signal integrity, backtesting engine, proactive alerts | ✅ Complete |
-| Phase 6 | RGB lighting (Corsair iCUE + AlienFX), web search (Tavily/DDG), bot stability | ✅ Complete |
-| [Phase 7](./phase7-ui/) | Custom Blade Runner terminal UI — React/Vite/FastAPI, 3-column dashboard | ✅ Complete |
-| Phase 8 | Voice interaction — Whisper STT, F5-TTS voice cloning (BMO), Kokoro/Chatterbox/edge-tts fallbacks, VAD auto-stop | ✅ Complete |
+| [Phase 6](./phase6-ui/) | Custom Blade Runner terminal UI — React/Vite/FastAPI, 3-column dashboard | ✅ Complete |
+| Phase 7 | Voice interaction — Whisper STT, F5-TTS voice cloning (BMO), Kokoro/Chatterbox/edge-tts fallbacks, VAD auto-stop | ✅ Complete |
 
 ---
 
@@ -218,28 +217,28 @@ python test_claude.py  # Should print: Enkidu lives
 
 Follow the **[Phase 1 guide](./phase1-local-inference/README.md)** to get Ollama and Gemma running on your GPU.
 
-### 7. Run the UI (Phase 7+)
+### 7. Run the UI (Phase 6+)
 
 ```bash
 # Install frontend dependencies and start the dev server (hot-reload)
-cd phase7-ui/client
+cd phase6-ui/client
 npm install
 npm run dev          # http://localhost:5173
 
 # In a second terminal — start the FastAPI backend
-cd phase7-ui/server
+cd phase6-ui/server
 pip install fastapi uvicorn faster-whisper kokoro soundfile edge-tts psutil pynvml
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Or use `phase7-ui/start_ui.bat` on Windows to start both with one click.
+Or use `phase6-ui/start_ui.bat` on Windows to start both with one click.
 
 Open `http://localhost:5173` in your browser (dev) or `http://localhost:8000` (production build).
 
 **Voice setup:**
 - First launch auto-downloads Whisper `base.en` (~145 MB) on first voice query.
-- F5-TTS voice cloning requires model weights in `phase7-ui/server/f5tts_model/` (~1.3 GB). Download separately — see `phase7-ui/server/f5tts_model/README.md`.
-- The default voice profile is BMO (Adventure Time). To use a different voice, record 5-8s of clean audio, save as `phase7-ui/server/voices/<name>.wav`, and update `ENKIDU_DEFAULT_VOICE` in `.env`.
+- F5-TTS voice cloning requires model weights in `phase6-ui/server/f5tts_model/` (~1.3 GB). Download separately — see `phase6-ui/server/f5tts_model/README.md`.
+- The default voice profile is BMO (Adventure Time). To use a different voice, record 5-8s of clean audio, save as `phase6-ui/server/voices/<name>.wav`, and update `ENKIDU_DEFAULT_VOICE` in `.env`.
 
 ### 7b. Run Enkidu via Telegram (Phase 3)
 
@@ -351,7 +350,7 @@ enkidu/
 │   ├── performance_tracker.py        # Compute returns vs SPY at 30/90/180/365-day horizons
 │   └── alert_engine.py               # Proactive Telegram alerts (price dips, ranking changes, perf)
 │
-└── phase7-ui/                        # Custom Blade Runner terminal UI (Phase 7–8)
+└── phase6-ui/                        # Custom Blade Runner terminal UI (Phase 6–7)
     ├── server/
     │   ├── main.py                   # FastAPI — chat/gpu/voice WebSockets + REST APIs
     │   ├── voice.py                  # STT (faster-whisper) + TTS (5-tier: F5-TTS/Chatterbox/Kokoro/edge-tts/pyttsx3) + character FX

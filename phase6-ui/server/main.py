@@ -1,5 +1,5 @@
 """
-phase7-ui/server/main.py — Enkidu UI backend (FastAPI)
+phase6-ui/server/main.py — Enkidu UI backend (FastAPI)
 
 Endpoints:
   GET  /api/health

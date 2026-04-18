@@ -16,7 +16,7 @@ npm install
 npm run dev      # http://localhost:5173 (proxies /api and /ws to :8000)
 ```
 
-Requires the FastAPI backend running: `python phase7-ui/server/main.py`
+Requires the FastAPI backend running: `python phase6-ui/server/main.py`
 
 ## Production Build
 
@@ -61,7 +61,7 @@ FastAPI serves `dist/` as a static SPA at `http://localhost:8000`.
 | `HistoryPanel.tsx` | Session conversation history |
 | `Header.tsx` | Title bar with live GPU stats inline |
 
-## Voice System (Phase 8)
+## Voice System (Phase 7)
 
 VoicePanel connects to `/ws/voice` which runs:
 

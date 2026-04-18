@@ -8,7 +8,7 @@ What it does:
     1. Downloads the audio with yt-dlp (best audio, m4a/webm).
     2. Extracts a clean ~10-15 s segment with ffmpeg.
     3. Converts to mono 24 kHz PCM16 WAV \u2014 the format F5-TTS likes best.
-    4. Saves to phase7-ui/server/voices/<profile_name>.wav.
+    4. Saves to phase6-ui/server/voices/<profile_name>.wav.
     5. Optionally writes a sidecar <profile_name>.txt transcript (Whisper)
        so F5-TTS can clone reliably without auto-transcription stalls.
 

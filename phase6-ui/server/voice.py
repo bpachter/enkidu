@@ -1,5 +1,5 @@
 """
-phase7-ui/server/voice.py — Speech-to-text + text-to-speech for Enkidu
+phase6-ui/server/voice.py — Speech-to-text + text-to-speech for Enkidu
 
 STT: faster-whisper (base.en CUDA float16 → CPU int8 fallback)
      initial_prompt biases Whisper toward "Enkidu" and other proper nouns
@@ -15,7 +15,7 @@ TTS priority:
   5. pyttsx3 SAPI5 — offline Windows last resort
 
 Voice profiles (.wav):
-  Drop any .wav into phase7-ui/server/voices/ — used as reference by F5/Chatterbox.
+  Drop any .wav into phase6-ui/server/voices/ — used as reference by F5/Chatterbox.
   Kokoro uses its own built-in voices (no reference wav needed).
   GET /api/voices → list of all available voice IDs (Kokoro + wav profiles)
   Active voice stored in module-level _active_voice.
@@ -1347,6 +1347,14 @@ async def synthesize_streaming(
             continue
 
         if is_wav_profile and stream_clone:
+            # Skip F5-TTS for very short fragments — the model echoes the reference
+            # transcript when input text is too short (< 12 chars), producing
+            # hallucinations like "surprise" leaking from the sidecar .txt file.
+            if len(sentence.strip()) < 12:
+                wav = await loop.run_in_executor(None, lambda s=sentence: _synth_kokoro(s, profile))
+                if wav:
+                    await on_sentence(wav, "wav", seq)
+                continue
             # Optional: route through full clone pipeline for wav profiles.
             wav_bytes, fmt = await synthesize(sentence, voice_profile=profile)
             if wav_bytes:

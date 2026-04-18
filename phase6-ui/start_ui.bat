@@ -1,5 +1,5 @@
 @echo off
-echo Starting Enkidu Phase 7 UI...
+echo Starting Enkidu Phase 6 UI...
 
 :: Start FastAPI backend
 :: --reload is intentionally OFF: the server writes server.log, test_tts.wav and

@@ -676,7 +676,7 @@ Multiple fixes applied over the course of the session:
 
 ---
 
-## Phase 7 — Custom UI (Blade Runner Terminal)
+## Phase 6 — Custom UI (Blade Runner Terminal)
 
 **Date:** April 15, 2026 | **Status:** 🔧 In Progress
 
@@ -684,7 +684,7 @@ Multiple fixes applied over the course of the session:
 
 Replace Open WebUI with a fully custom web application that looks and feels like a terminal from the original Blade Runner (1982) — dark, amber-on-black, CRT scanlines, phosphor glow — while exposing every meaningful Enkidu capability in one place. This is the permanent home interface for the assistant.
 
-Open WebUI served well as a scaffold. Phase 7 replaces it with something purpose-built: designed around Enkidu's actual feature set rather than generic LLM chat.
+Open WebUI served well as a scaffold. Phase 6 replaces it with something purpose-built: designed around Enkidu's actual feature set rather than generic LLM chat.
 
 ### Aesthetic Reference
 
@@ -725,7 +725,7 @@ Browser (React SPA)
     ├── GET  /api/portfolio     ← QV screener portfolio snapshot
     └── GET  /api/regime        ← current HMM market regime
 
-FastAPI server (phase7-ui/server/main.py)
+FastAPI server (phase6-ui/server/main.py)
     │
     ├── enkidu_agent.run_agent()     ← Phase 3 ReAct loop
     ├── lighting.inference_start/stop ← Phase 6 RGB
@@ -770,22 +770,22 @@ FastAPI server (phase7-ui/server/main.py)
 
 | Step | Component | Notes |
 |------|-----------|-------|
-| 7.1  | `phase7-ui/` scaffold — FastAPI backend + React/Vite frontend | `npm create vite`, FastAPI app, dev proxy |
-| 7.2  | Blade Runner CSS design system | variables, scanline overlay, glow utilities, typography |
-| 7.3  | Chat panel — send/receive, streaming via WebSocket | wire to `run_agent()` |
-| 7.4  | GPU dashboard panel — live WebSocket at 2 Hz | `system_info.get_context()` |
-| 7.5  | Model parameters panel — sliders wired to Ollama `/api/generate` options | temp, top_p, top_k, repeat_penalty |
-| 7.6  | Market panel — regime badge + QV portfolio top picks | `regime_detector` + `edgar_screener` |
-| 7.7  | Conversation history panel — load from Phase 4 memory | `memory_bridge retrieve` |
-| 7.8  | Lighting status widget — inference state indicator | |
-| 7.9  | Production build — FastAPI serves compiled React SPA | replace Open WebUI |
-| 7.10 | 3-column layout redesign | VoicePanel left, Chat center, Market/GPU right |
-| 7.11 | GPU history sparklines (GpuHistoryPanel) | iCUE-style Recharts AreaChart, 120-pt ring buffer |
-| 7.12 | SystemMiniPanel — compact 112px strip | VRAM, GPU temp, CPU, RAM with color thresholds |
-| 7.13 | ChatPanel height fix | flex: 1 + minHeight: 0 to fill center column |
-| 7.14 | Header live GPU stats | VRAM%, temp, power inline in the header bar |
+| 6.1  | `phase6-ui/` scaffold — FastAPI backend + React/Vite frontend | `npm create vite`, FastAPI app, dev proxy |
+| 6.2  | Blade Runner CSS design system | variables, scanline overlay, glow utilities, typography |
+| 6.3  | Chat panel — send/receive, streaming via WebSocket | wire to `run_agent()` |
+| 6.4  | GPU dashboard panel — live WebSocket at 2 Hz | `system_info.get_context()` |
+| 6.5  | Model parameters panel — sliders wired to Ollama `/api/generate` options | temp, top_p, top_k, repeat_penalty |
+| 6.6  | Market panel — regime badge + QV portfolio top picks | `regime_detector` + `edgar_screener` |
+| 6.7  | Conversation history panel — load from Phase 4 memory | `memory_bridge retrieve` |
+| 6.8  | Lighting status widget — inference state indicator | |
+| 6.9  | Production build — FastAPI serves compiled React SPA | replace Open WebUI |
+| 6.10 | 3-column layout redesign | VoicePanel left, Chat center, Market/GPU right |
+| 6.11 | GPU history sparklines (GpuHistoryPanel) | iCUE-style Recharts AreaChart, 120-pt ring buffer |
+| 6.12 | SystemMiniPanel — compact 112px strip | VRAM, GPU temp, CPU, RAM with color thresholds |
+| 6.13 | ChatPanel height fix | flex: 1 + minHeight: 0 to fill center column |
+| 6.14 | Header live GPU stats | VRAM%, temp, power inline in the header bar |
 
-### What Broke (Phase 7)
+### What Broke (Phase 6)
 
 **GPU WebSocket ownership conflict.** GpuPanel and App.tsx both tried to open `/ws/gpu`. Only one WebSocket owner is correct — moved to App.tsx so GPU stats flow to both SystemMiniPanel and GpuHistoryPanel regardless of which is visible.
 
@@ -806,7 +806,7 @@ FastAPI server (phase7-ui/server/main.py)
 
 ---
 
-## Phase 8 — Voice Interaction
+## Phase 7 — Voice Interaction
 
 **Date:** April 16, 2026 | **Status:** ✅ Complete
 
@@ -821,7 +821,7 @@ Three sub-goals:
 
 ### What Was Built
 
-**`phase7-ui/server/voice.py`**
+**`phase6-ui/server/voice.py`**
 - `transcribe(raw_bytes, sample_rate)` — `np.frombuffer` float32 → resample if needed → `WhisperModel.transcribe` with `vad_filter=True`
 - `synthesize(text)` — `edge_tts.Communicate(text, voice)` async stream → MP3 bytes
 - Lazy Whisper model load: CUDA float16 on first call, CPU int8 fallback
@@ -829,13 +829,13 @@ Three sub-goals:
 - Model: `small.en` (244 MB, English-only) — better accuracy than `base.en` at negligible VRAM cost on the 4090
 - Voice: `en-US-BrianNeural` — deep, natural Microsoft neural voice
 
-**`phase7-ui/server/main.py` — `/ws/voice` endpoint**
+**`phase6-ui/server/main.py` — `/ws/voice` endpoint**
 - Receives `{type: "audio", data: <base64 float32>, rate: <sample_rate>}`
 - Pipeline: Whisper transcribe → `run_agent()` (streaming tokens) → edge-tts synthesize → send MP3 back
 - All three steps are threadsafe: blocking calls wrapped in `loop.run_in_executor`
 - Sends progress messages (`status`, `transcript`, `step`, `token`, `tts_audio`, `done`) so the UI can show each stage
 
-**`phase7-ui/client/src/components/VoicePanel.tsx`** — full conversational UI:
+**`phase6-ui/client/src/components/VoicePanel.tsx`** — full conversational UI:
 - **VAD (Voice Activity Detection)** — `AnalyserNode` polled every 80ms; RMS compared against thresholds. Recording auto-stops after 900ms of silence following ≥400ms of detected speech. No click required.
 - **Frequency waveform** — canvas `requestAnimationFrame` renders FFT frequency bars (lower half = voice range). Red while recording, green while speaking, cyan otherwise.
 - **Level bar** — 3px animated bar shows mic energy while recording.
