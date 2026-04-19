@@ -106,26 +106,33 @@ class MetricsCalculator:
         # Current ratio
         df['current_ratio'] = self._safe_divide(df['current_assets'], df['current_liabilities'])
 
-        # Compute growth rates separately for annual and quarterly
+        # Compute growth rates separately for annual and quarterly.
+        # Use copies + concat so that new columns added inside _compute_growth_rates
+        # are actually retained (df.loc[mask] = result silently drops unknown columns).
         annual_mask = df['frequency'] == 'annual'
         quarterly_mask = df['frequency'] == 'quarterly'
+        other_mask = ~annual_mask & ~quarterly_mask
 
-        # Annual growth (YoY)
+        pieces = []
+
         if annual_mask.any():
-            df.loc[annual_mask] = self._compute_growth_rates(
-                df[annual_mask], periods=1, suffix='_yoy'
+            annual_df = self._compute_growth_rates(
+                df[annual_mask].copy(), periods=1, suffix='_yoy'
             )
+            pieces.append(annual_df)
 
-        # Quarterly growth (both QoQ and YoY)
         if quarterly_mask.any():
-            # Quarter-over-quarter
-            df.loc[quarterly_mask] = self._compute_growth_rates(
-                df[quarterly_mask], periods=1, suffix='_qoq'
+            qdf = self._compute_growth_rates(
+                df[quarterly_mask].copy(), periods=1, suffix='_qoq'
             )
-            # Year-over-year (4 quarters)
-            df.loc[quarterly_mask] = self._compute_growth_rates(
-                df[quarterly_mask], periods=4, suffix='_yoy'
-            )
+            qdf = self._compute_growth_rates(qdf, periods=4, suffix='_yoy')
+            pieces.append(qdf)
+
+        if other_mask.any():
+            pieces.append(df[other_mask].copy())
+
+        if pieces:
+            df = pd.concat(pieces).sort_index()
 
         # Compute accrual ratio
         df['accrual_ratio'] = self._compute_accrual_ratio(df)

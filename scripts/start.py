@@ -28,6 +28,12 @@ import sys
 import time
 from pathlib import Path
 
+# Windows terminals default to cp1252 which can't encode ✓ ✗ ⚠ → …
+# Reconfigure to UTF-8 so Unicode status symbols print correctly.
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 _ROOT = Path(__file__).parent.parent
 
 GREEN  = "\033[32m"

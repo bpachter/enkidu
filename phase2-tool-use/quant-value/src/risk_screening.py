@@ -146,18 +146,23 @@ class RiskScreener:
             df['dsri'] = 1.0  # Neutral when receivables data unavailable
 
         # 2. Gross Margin Index (GMI)
-        df['gross_margin_lag'] = df['gross_profit_lag'] / df['revenue_lag']
-        df['gross_margin_current'] = df['gross_profit'] / df['revenue']
-        df['gmi'] = df['gross_margin_lag'] / df['gross_margin_current']
+        if 'gross_profit_lag' in df.columns and 'revenue_lag' in df.columns:
+            df['gross_margin_lag'] = df['gross_profit_lag'] / df['revenue_lag']
+            df['gross_margin_current'] = df['gross_profit'] / df['revenue']
+            df['gmi'] = df['gross_margin_lag'] / df['gross_margin_current']
+        else:
+            df['gmi'] = 1.0
 
         # 3. Asset Quality Index (AQI)
         # AQI = (1 - (PPE + Current Assets)/Total Assets) current / prior
         # Approximating PP&E as Total Assets - Current Assets
         df['ppe'] = df['total_assets'] - df['current_assets']
-        df['ppe_lag'] = df['total_assets_lag'] - df['current_assets_lag'] if 'current_assets_lag' in df.columns else df['total_assets_lag'] - df.groupby('ticker')['current_assets'].shift(1)
+        # Reuse the lag column created in the loop above — don't call shift() again
+        ca_lag = df['current_assets_lag'] if 'current_assets_lag' in df.columns else df.groupby('ticker')['current_assets'].shift(1)
+        df['ppe_lag'] = df['total_assets_lag'] - ca_lag
 
         df['asset_quality'] = 1 - (df['ppe'] + df['current_assets']) / df['total_assets']
-        df['asset_quality_lag'] = 1 - (df['ppe_lag'] + df.groupby('ticker')['current_assets'].shift(1)) / df['total_assets_lag']
+        df['asset_quality_lag'] = 1 - (df['ppe_lag'] + ca_lag) / df['total_assets_lag']
         df['aqi'] = df['asset_quality'] / df['asset_quality_lag']
 
         # 4. Sales Growth Index (SGI)

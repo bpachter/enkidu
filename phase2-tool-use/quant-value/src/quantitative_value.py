@@ -303,8 +303,8 @@ class QuantitativeValueScreener:
             if 'total_debt' not in df.columns:
                 df['total_debt'] = (
                     df['long_term_debt'].fillna(0)
-                    + df['short_term_borrowings'].fillna(0) if 'short_term_borrowings' in df.columns else 0
-                    + df['current_portion_lt_debt'].fillna(0) if 'current_portion_lt_debt' in df.columns else 0
+                    + (df['short_term_borrowings'].fillna(0) if 'short_term_borrowings' in df.columns else 0)
+                    + (df['current_portion_lt_debt'].fillna(0) if 'current_portion_lt_debt' in df.columns else 0)
                 )
 
             minority = df['minority_interest'].fillna(0) if 'minority_interest' in df.columns else 0
@@ -528,10 +528,19 @@ class QuantitativeValueScreener:
         # Step 1: Risk Screening
         logger.info("\nSTEP 1: RISK SCREENING - Avoid Permanent Loss of Capital")
         logger.info("-" * 60)
-        
-        clean_stocks, excluded_stocks_dict = self.risk_screener.screen_high_risk_stocks(
+
+        # Risk screening should use annual fundamentals only — quarterly rows are
+        # interim data and contain many NaN fields that break M-Score / distress calcs.
+        risk_fund = self.fundamentals_df.copy()
+        if 'frequency' in risk_fund.columns:
+            annual_fund = risk_fund[risk_fund['frequency'] == 'annual']
+            if not annual_fund.empty:
+                risk_fund = annual_fund
+        risk_screener = RiskScreener(risk_fund)
+
+        clean_stocks, excluded_stocks_dict = risk_screener.screen_high_risk_stocks(
             accrual_threshold=accrual_threshold,
-            manipulation_threshold=manipulation_threshold, 
+            manipulation_threshold=manipulation_threshold,
             distress_threshold=distress_threshold
         )
         

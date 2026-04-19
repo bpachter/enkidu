@@ -445,11 +445,22 @@ class MarketDataProvider:
             df = fundamentals_df.copy()
             df['market_cap_final'] = np.nan
             # Use total_debt (all interest-bearing claims) per Carlisle/Gray
-            total_debt = df['total_debt'].fillna(0) if 'total_debt' in df.columns else df.get('long_term_debt', pd.Series(0, index=df.index)).fillna(0)
+            if 'total_debt' in df.columns:
+                total_debt = df['total_debt'].fillna(0)
+            elif 'long_term_debt' in df.columns:
+                total_debt = df['long_term_debt'].fillna(0)
+            else:
+                total_debt = pd.Series(0, index=df.index)
             minority = df['minority_interest'].fillna(0) if 'minority_interest' in df.columns else 0
             preferred = df['preferred_stock'].fillna(0) if 'preferred_stock' in df.columns else 0
-            equity = df['total_equity'].fillna(0) if 'total_equity' in df.columns else df.get('stockholders_equity', pd.Series(0, index=df.index)).fillna(0)
-            df['enterprise_value'] = equity + total_debt + minority + preferred - df.get('cash', pd.Series(0, index=df.index)).fillna(0)
+            if 'total_equity' in df.columns:
+                equity = df['total_equity'].fillna(0)
+            elif 'stockholders_equity' in df.columns:
+                equity = df['stockholders_equity'].fillna(0)
+            else:
+                equity = pd.Series(0, index=df.index)
+            cash = df['cash'].fillna(0) if 'cash' in df.columns else pd.Series(0, index=df.index)
+            df['enterprise_value'] = equity + total_debt + minority + preferred - cash
             df['enterprise_value'] = df['enterprise_value'].replace(0, np.nan)
 
             # Calculate valuation ratios
