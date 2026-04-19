@@ -255,6 +255,21 @@ def health():
     return {"ok": True, "version": "7.0.0"}
 
 
+@app.get("/api/health/detailed")
+def health_detailed():
+    """Run all subsystem health checks and return a full diagnostic report."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("enkidu_health", _ROOT / "enkidu_health.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        results = mod.run_all(parallel=True, timeout=20.0)
+        return mod.summary(results)
+    except Exception as e:
+        logger.error(f"Health check error: {e}", exc_info=True)
+        return {"overall": "unknown", "error": str(e), "counts": {}, "checks": []}
+
+
 @app.get("/api/params")
 def get_params():
     return _gemma_params
@@ -433,6 +448,36 @@ async def delete_memory(exchange_id: str):
         return {"ok": True}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/telemetry")
+def get_telemetry(n: int = 50):
+    """Return recent tool-call telemetry (latency, success rate, errors)."""
+    try:
+        sys.path.insert(0, str(_PHASE3 / "tools"))
+        from registry import get_telemetry as _get_telem
+        records = _get_telem(n)
+        # Compute per-tool stats
+        from collections import defaultdict
+        stats: dict = defaultdict(lambda: {"calls": 0, "errors": 0, "total_ms": 0.0})
+        for r in records:
+            t = stats[r["tool"]]
+            t["calls"] += 1
+            if not r["success"]:
+                t["errors"] += 1
+            t["total_ms"] += r.get("latency_ms", 0)
+        tool_stats = {
+            tool: {
+                "calls": s["calls"],
+                "errors": s["errors"],
+                "error_rate": round(s["errors"] / s["calls"], 3) if s["calls"] else 0,
+                "avg_latency_ms": round(s["total_ms"] / s["calls"], 1) if s["calls"] else 0,
+            }
+            for tool, s in stats.items()
+        }
+        return {"records": records, "tool_stats": tool_stats}
+    except Exception as e:
+        return {"records": [], "tool_stats": {}, "error": str(e)}
 
 
 @app.get("/api/docs")

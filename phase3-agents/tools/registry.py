@@ -13,9 +13,31 @@ to build the tool section of the system prompt.
 
 import os
 import sys
+import time
+import logging
 import subprocess
 import importlib.util
 from typing import Callable
+
+_telem_logger = logging.getLogger("enkidu.telemetry")
+
+# In-memory telemetry ring buffer (last 200 tool call records)
+_TELEMETRY: list[dict] = []
+_TELEM_MAX = 200
+
+def _record_telemetry(name: str, latency_ms: float, success: bool, error: str = ""):
+    record = {
+        "tool": name,
+        "ts": time.time(),
+        "latency_ms": round(latency_ms, 1),
+        "success": success,
+        "error": error,
+    }
+    _TELEMETRY.append(record)
+    if len(_TELEMETRY) > _TELEM_MAX:
+        _TELEMETRY.pop(0)
+    if not success:
+        _telem_logger.warning(f"Tool '{name}' failed in {latency_ms:.0f}ms: {error}")
 
 # Phase 4 memory bridge — subprocess so we don't need chromadb in the phase3 env
 _PHASE4_PYTHON = os.path.normpath(
@@ -88,21 +110,49 @@ def register(name: str, description: str, parameters: dict, fn: Callable):
     }
 
 
-def dispatch(name: str, **kwargs) -> str:
+def dispatch(name: str, max_retries: int = 2, retry_delay: float = 1.0, **kwargs) -> str:
     """
-    Call a registered tool by name. Returns the observation string.
-    Returns an error message (not an exception) if the tool is unknown or fails,
-    so the agent can reason about the failure rather than crashing.
+    Call a registered tool by name with automatic retry and telemetry.
+
+    - Retries up to max_retries times on transient errors (timeout, network, I/O).
+    - Records latency and success/failure to the in-memory telemetry buffer.
+    - Returns an error string (not an exception) so the agent can reason about failures.
     """
     if name not in TOOLS:
         known = ", ".join(TOOLS.keys())
-        return f"Error: unknown tool '{name}'. Available tools: {known}"
-    try:
-        return TOOLS[name]["fn"](**kwargs)
-    except TypeError as e:
-        return f"Error: wrong arguments for tool '{name}': {e}"
-    except Exception as e:
-        return f"Error running tool '{name}': {e}"
+        err = f"Error: unknown tool '{name}'. Available tools: {known}"
+        _record_telemetry(name, 0, False, err)
+        return err
+
+    last_error = ""
+    for attempt in range(max_retries + 1):
+        t0 = time.monotonic()
+        try:
+            result = TOOLS[name]["fn"](**kwargs)
+            latency = (time.monotonic() - t0) * 1000
+            _record_telemetry(name, latency, True)
+            return result
+        except TypeError as e:
+            latency = (time.monotonic() - t0) * 1000
+            err = f"Error: wrong arguments for tool '{name}': {e}"
+            _record_telemetry(name, latency, False, str(e))
+            return err  # Argument errors are not transient — don't retry
+        except Exception as e:
+            latency = (time.monotonic() - t0) * 1000
+            last_error = str(e)
+            _record_telemetry(name, latency, False, last_error)
+            if attempt < max_retries:
+                _telem_logger.info(f"Tool '{name}' attempt {attempt + 1} failed, retrying in {retry_delay}s: {e}")
+                time.sleep(retry_delay)
+            # Escalate delay on each retry
+            retry_delay = min(retry_delay * 2, 10.0)
+
+    return f"Error running tool '{name}' (after {max_retries + 1} attempts): {last_error}"
+
+
+def get_telemetry(n: int = 50) -> list[dict]:
+    """Return the last n telemetry records."""
+    return list(_TELEMETRY[-n:])
 
 
 def tool_descriptions() -> str:
