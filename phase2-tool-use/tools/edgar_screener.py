@@ -446,6 +446,7 @@ def get_context(query: str) -> str:
 
     query_lower = query.lower()
     lines = ["[EDGAR CONTEXT — QuantitativeValue screened portfolio]",
+             _get_provenance_block(),
              f"Data last modified: {_get_data_age()}",
              f"Universe: {len(portfolio)} screened stocks\n"]
 
@@ -534,6 +535,52 @@ def get_context(query: str) -> str:
         ]
 
     return "\n".join(l for l in lines if l)
+
+
+def _get_provenance_block() -> str:
+    """
+    Return a structured provenance block for injection into EDGAR context.
+    Includes: source, timestamp, age, freshness flag, and confidence advisory.
+    """
+    p = get_processed_path()
+    if not p:
+        return "Provenance: QV_PATH not configured — source unknown."
+
+    for filename in ("quantitative_value_portfolio.csv", "metrics.csv"):
+        path = p / filename
+        if path.exists():
+            break
+    else:
+        return "Provenance: Data files not found."
+
+    mtime = path.stat().st_mtime
+    age_hours = (time.time() - mtime) / 3600
+    ts = time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(mtime))
+
+    if age_hours < 24:
+        freshness = "FRESH"
+        confidence = "HIGH — data updated within 24 hours"
+    elif age_hours < 72:
+        freshness = "FRESH"
+        confidence = "HIGH — data updated within 3 days"
+    elif age_hours < 168:
+        freshness = "STALE"
+        confidence = "MEDIUM — data is 3-7 days old; market prices may have shifted"
+    else:
+        freshness = "STALE"
+        confidence = "LOW — data is over 7 days old; re-run QV pipeline for current picks"
+
+    lines = [
+        f"Provenance: SEC EDGAR XBRL filings (via QV pipeline)",
+        f"  Filing period: trailing-twelve-months (TTM)",
+        f"  Last updated:  {ts}  ({age_hours:.0f}h ago)",
+        f"  Freshness:     {freshness}",
+        f"  Confidence:    {confidence}",
+    ]
+    if freshness == "STALE":
+        lines.append("  ADVISORY: For time-sensitive decisions, re-run: python phase2-tool-use/quant-value/src/run_all.py")
+
+    return "\n".join(lines)
 
 
 def _get_data_age() -> str:

@@ -313,15 +313,28 @@ def get_portfolio():
         _qv_root = os.environ.get("QV_PATH", "")
         qv_path = Path(_qv_root) / "data/processed/quantitative_value_portfolio.csv" if _qv_root else Path()
         if not _qv_root or not qv_path.exists():
-            return {"picks": [], "error": "portfolio CSV not found"}
+            return {"picks": [], "error": "portfolio CSV not found", "provenance": None}
         df = pd.read_csv(qv_path)
         top = df.head(25)
         cols = [c for c in ["ticker", "sector", "ev_ebit", "value_composite", "quality_score", "f_score"] if c in top.columns]
         # to_json() converts NaN → null so frontend gets null (not "") for missing values
         records = json.loads(top[cols].to_json(orient="records"))
-        return {"picks": records}
+        # Provenance tag
+        age_hours = (time.time() - qv_path.stat().st_mtime) / 3600
+        last_updated = time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(qv_path.stat().st_mtime))
+        freshness = "fresh" if age_hours <= 72 else "stale"
+        return {
+            "picks": records,
+            "provenance": {
+                "source": "SEC EDGAR XBRL (via QV pipeline)",
+                "last_updated": last_updated,
+                "age_hours": round(age_hours, 1),
+                "freshness": freshness,
+                "filing_period": "trailing-twelve-months (TTM)",
+            },
+        }
     except Exception as e:
-        return {"picks": [], "error": str(e)}
+        return {"picks": [], "error": str(e), "provenance": None}
 
 
 def _get_db_path():
@@ -448,6 +461,20 @@ async def delete_memory(exchange_id: str):
         return {"ok": True}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/freshness")
+def get_freshness():
+    """Return a data freshness audit for all Enkidu data sources."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("data_freshness", Path(__file__).parent / "data_freshness.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.get_freshness_report()
+    except Exception as e:
+        logger.error(f"Freshness check error: {e}", exc_info=True)
+        return {"overall": "unknown", "error": str(e), "sources": []}
 
 
 @app.get("/api/demos")
