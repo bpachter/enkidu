@@ -678,7 +678,7 @@ Multiple fixes applied over the course of the session:
 
 ## Phase 6 — Custom UI (Blade Runner Terminal)
 
-**Date:** April 15, 2026 | **Status:** 🔧 In Progress
+**Date:** April 15, 2026 | **Status:** ✅ Complete
 
 ### Vision
 
@@ -877,3 +877,60 @@ Three sub-goals:
 | 8.8 | Upgrade Whisper `base.en` → `small.en` | better accuracy, negligible VRAM cost on 4090 |
 | 8.9 | `enkidu_agent.py` — identity grounding fix | always inject "user is Ben Pachter" — kills Cody hallucination |
 | 8.10 | `enkidu_agent.py` — self-reference recall fix | `_get_last_exchange()` + `_is_self_reference()` wired into both system prompts |
+
+---
+
+## Phase 8 — Documentation Reframe and Launch Readiness
+
+**Date:** April 18, 2026 | **Status:** ✅ Complete
+
+### Why this phase happened
+
+The code was ahead of the docs. Core functionality (UI + voice + tools + memory) was working, but onboarding material and public-facing writeups were inconsistent, partially stale, and missing visual handholds for new users.
+
+### What was done
+
+**LinkedIn/public launch package:**
+- Added `LINKEDIN_POST.md` with multiple publish-ready variants (short/medium/long) and conversion-oriented CTA structure.
+- Added `docs/MEDIA_GUIDE.md` with an explicit screenshot/GIF shot list per phase so docs and social content can be produced quickly without guessing.
+- Added `assets/README.md` with naming/format conventions for screenshots and clips.
+
+**Root docs refresh (`README.md`):**
+- Reframed top sections for both non-technical and technical readers.
+- Updated stale architecture wording and command descriptions to match current behavior.
+- Removed/rewrote outdated references (including a non-existent `phase6-ui/server/f5tts_model/README.md` link).
+- Replaced broken inline image embeds with explicit placeholders where assets are not yet captured.
+
+**Phase docs refresh:**
+- Updated phase READMEs with plain-English intros and media placeholders so each phase can be understood by both technical and non-technical readers.
+- Synced command documentation with the actual Telegram command set (`/help`, `/stats`, `/history`, `/watchlist`, `/performance`, `/refresh`, `/rate`).
+
+**Runtime readiness check for screenshots/demo:**
+- Started backend (`uvicorn main:app --host 0.0.0.0 --port 8000`) and frontend (`npm run dev`) successfully.
+- Verified live traffic on REST + WebSocket endpoints (`/api/*`, `/ws/chat`, `/ws/gpu`, `/ws/voice`) before capture.
+
+### What broke
+
+**Broken local README links after media placeholders were added.**
+Some image paths were committed before the assets existed, creating broken local links. Fixed by converting those to explicit placeholder notes and then validating links from the root README.
+
+**Doc drift between implementation and narrative.**
+The docs described command options and assumptions from earlier phases (for example old Telegram command expectations). Fixed by checking the command handlers and updating README language to match current code paths.
+
+### What was learned
+
+- Docs should be treated as part of the product surface, not a post-build chore.
+- Public launch prep works best as an explicit phase with a done criteria list (copy, visuals, startup verification, and link checks).
+- A simple local link validator catches documentation regressions early and should be run before every public push.
+
+### Files created or updated in this phase
+
+- `LINKEDIN_POST.md`
+- `docs/MEDIA_GUIDE.md`
+- `assets/README.md`
+- `README.md`
+- `phase1-local-inference/README.md`
+- `phase2-tool-use/README.md`
+- `phase3-agents/README.md`
+- `phase4-memory/README.md`
+- `phase6-ui/client/README.md`
