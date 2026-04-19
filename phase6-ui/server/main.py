@@ -450,6 +450,35 @@ async def delete_memory(exchange_id: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@app.get("/api/demos")
+def get_demos():
+    """Return all prebuilt demo definitions for the in-app demo launcher."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("demos", Path(__file__).parent / "demos.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return {"demos": mod.get_all_demos()}
+    except Exception as e:
+        return {"demos": [], "error": str(e)}
+
+
+@app.get("/api/demos/{demo_id}")
+def get_demo(demo_id: str):
+    """Return a full demo definition (including steps) by ID."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("demos", Path(__file__).parent / "demos.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        demo = mod.get_demo(demo_id)
+        if not demo:
+            return JSONResponse({"error": f"Demo '{demo_id}' not found"}, status_code=404)
+        return demo
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.get("/api/telemetry")
 def get_telemetry(n: int = 50):
     """Return recent tool-call telemetry (latency, success rate, errors)."""

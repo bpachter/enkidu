@@ -7,10 +7,11 @@ import MarketPanel      from './components/MarketPanel'
 import MemoryPanel      from './components/MemoryPanel'
 import HistoryPanel     from './components/HistoryPanel'
 import DocsPanel        from './components/DocsPanel'
+import DemoPanel        from './components/DemoPanel'
 import { useStore }     from './store'
 import { createGpuSocket } from './api'
 
-type LeftTab = 'params' | 'docs'
+type LeftTab = 'params' | 'docs' | 'demo'
 
 export default function App() {
   const setGpuStats          = useStore((s) => s.setGpuStats)
@@ -47,16 +48,22 @@ export default function App() {
         <GpuHistoryPanel />
       </div>
 
-      {/* ── Left column: Params / Cuda docs ── */}
+      {/* ── Left column: Params / Cuda docs / Demos ── */}
       <div className="col-left">
         <div className="tab-bar">
           <button className={`tab-btn ${leftTab === 'params' ? 'active' : ''}`} onClick={() => setLeftTab('params')}>PARAMS</button>
-          <button className={`tab-btn ${leftTab === 'docs' ? 'active' : ''}`}   onClick={() => setLeftTab('docs')}>CUDA</button>
+          <button className={`tab-btn ${leftTab === 'docs'   ? 'active' : ''}`} onClick={() => setLeftTab('docs')}>CUDA</button>
+          <button className={`tab-btn ${leftTab === 'demo'   ? 'active' : ''}`} onClick={() => setLeftTab('demo')}>DEMOS</button>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {leftTab === 'params' && <ModelParamsPanel />}
           {leftTab === 'docs'   && (
             <DocsPanel onAskEnkidu={(q) => {
+              setPendingChatInput(q)
+            }} />
+          )}
+          {leftTab === 'demo'   && (
+            <DemoPanel onAskEnkidu={(q) => {
               setPendingChatInput(q)
             }} />
           )}
