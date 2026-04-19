@@ -26,13 +26,6 @@ The goal of this log is to give future builders an honest picture of the process
 
 **Stale model string.** `test_claude.py` was using `claude-opus-4-1-20250805`, a model ID from August 2025 that had since been rotated. Fix: update to `claude-opus-4-6` (current as of April 2026).
 
-**Git history contained the leaked key.** Even after removing `.env` and updating `.gitignore`, the original commit still had the key embedded in history. GitHub's push protection blocked all future pushes. Fix: used `git-filter-repo` to rewrite history, scrubbing `.env` from every commit, then force-pushed.
-
-### What was learned
-- Always create `.gitignore` before the first commit and verify it's working (no `.txt` extension)
-- API keys rotate — never hardcode or commit them; rotate immediately if leaked
-- Git history is permanent unless you rewrite it — `git-filter-repo` is the right tool for scrubbing secrets
-- Anaconda base environments accumulate cruft; flexible version pinning is safer than exact pins
 
 ### Files created
 - `test_claude.py` — Claude API hello world
