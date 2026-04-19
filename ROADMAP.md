@@ -59,6 +59,22 @@ Personal local AI assistant for Ben — RTX 4090, Ollama + Claude, quantitative 
 
 ## In Progress / Near-term
 
+### Phase 7 (extended) — Data Center Siting Selection
+- [x] Factor catalog (14 factors), archetype weights, kill criteria
+- [x] Composite scorer (0-10) with cohort-median imputation + provenance
+- [x] CLI (`python -m src.cli score|ingest`) and sample-site smoke run
+- [x] FastAPI endpoints in Phase 6 UI: `/api/siting/factors`, `/api/siting/score`, `/api/siting/sample`
+- [ ] Real ingest: HIFLD transmission ≥230 kV, gas pipelines, long-haul fiber
+- [ ] Real ingest: EIA-861/930, EPA eGRID, FEMA NFHL, USGS seismic, NOAA NCEI/Drought, PeeringDB, IRS OZ, BLS QCEW/OEWS
+- [ ] ISO/RTO interconnection queue scrapers (PJM, ERCOT, MISO, SPP, CAISO, NYISO, ISO-NE)
+- [ ] H3 r7 hex grid over CONUS + first end-to-end ERCOT run
+- [ ] React siting view: MapLibre overlay, factor sliders, archetype switcher, top-N table
+- [ ] Backtest: top-decile hex overlap with 2023-2025 announced hyperscaler builds
+- [ ] Behind-the-meter generation overlay (gas turbines, SMR queue)
+- [ ] Canada cohort (AESO, BC Hydro, Hydro-Québec)
+
+See [phase7-datacenter-siting/README.md](phase7-datacenter-siting/README.md) for full scope.
+
 ### Phase 8 — Hardening and Scale
 - [ ] **24-hour soak test** — run overnight, verify no crash
 - [ ] **Deterministic fallback** for every critical subsystem (documented and tested)

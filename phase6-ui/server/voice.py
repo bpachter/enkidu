@@ -606,6 +606,32 @@ def _numpy_to_wav(audio: np.ndarray, sr: int = _KOKORO_SR) -> bytes:
     return buf.getvalue()
 
 
+def _vad_trim(audio: np.ndarray, sr: int,
+              threshold_rms: float = 0.008,
+              window_ms: int = 30,
+              tail_padding_ms: int = 220) -> np.ndarray:
+    """Trim trailing low-energy frames from TTS output.
+
+    F5-TTS over-estimates output duration and fills the excess with artifacts or
+    words from its training data.  This finds the last window with energy above
+    threshold and discards everything after it + a short tail (preserves reverb).
+    Safe to run on Kokoro output too — it has no effect on normal endings.
+    """
+    if len(audio) < sr * 0.1:
+        return audio
+    window  = max(1, int(sr * window_ms / 1000))
+    padding = int(sr * tail_padding_ms / 1000)
+    n_frames = len(audio) // window
+    last_active = 0
+    for i in range(n_frames):
+        chunk = audio[i * window: (i + 1) * window]
+        rms = float(np.sqrt(np.mean(chunk.astype(np.float64) ** 2)))
+        if rms > threshold_rms:
+            last_active = i
+    trim_at = min(len(audio), (last_active + 1) * window + padding)
+    return audio[:trim_at].astype(np.float32)
+
+
 def _slowdown_audio(audio: np.ndarray, factor: float) -> np.ndarray:
     """Slightly stretch audio duration to slow speech pacing.
     factor > 1.0 makes speech slower.
@@ -654,6 +680,7 @@ def _synth_kokoro(text: str, voice_profile: Optional[str] = None) -> Optional[by
         if _MEGATRON_SLOWDOWN > 1.0:
             audio = _slowdown_audio(audio, _MEGATRON_SLOWDOWN)
         audio = _apply_character_fx(audio, voice=voice_profile or _active_voice)
+        audio = _vad_trim(audio, _KOKORO_SR)
         wav   = _numpy_to_wav(audio)
         logger.info(f"Kokoro: '{text[:40]}…' → {len(wav):,} bytes (voice={voice})")
         return wav
@@ -705,6 +732,11 @@ def _strip_markdown(text: str) -> str:
     text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
     # Horizontal rules
     text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+    # Em-dash / en-dash → natural pause (spoken as a comma beat, not "dash")
+    text = re.sub(r'[—–]', ', ', text)
+    # Common inline symbols: percent and currency expand to natural speech
+    text = re.sub(r'(\d)%', r'\1 percent', text)
+    text = re.sub(r'\$(\d)', r'\1 dollars', text)
     # Paragraph breaks → '. ' so split_sentences creates natural pauses
     text = re.sub(r'\n{2,}', '. ', text)
     # Single newlines → space
@@ -718,6 +750,8 @@ def _strip_markdown(text: str) -> str:
     text = re.sub(r'\s+([.!?])', r'\1', text)
     # Collapse multiple spaces
     text = re.sub(r'  +', ' ', text)
+    # Strip leading/trailing '. ' artifacts introduced by the paragraph-break rule
+    text = re.sub(r'^[\s.]+', '', text)
     return text.strip()
 
 
@@ -1201,11 +1235,9 @@ def _synth_sapi(text: str) -> bytes:
 
 def _postprocess_wav_bytes(wav_bytes: bytes, voice_profile: Optional[str]) -> bytes:
     """Re-apply character FX (pitch + extended chain) to WAV bytes from F5-TTS /
-    Chatterbox / edge-tts / SAPI so every backend shares the same voice signature."""
+    Chatterbox / edge-tts / SAPI so every backend shares the same voice signature.
+    VAD trim is always applied to strip F5-TTS trailing hallucinations."""
     if not wav_bytes:
-        return wav_bytes
-    # Only post-process when extended character FX is active.
-    if not _FX_MEGATRON:
         return wav_bytes
     try:
         import soundfile as sf
@@ -1213,6 +1245,13 @@ def _postprocess_wav_bytes(wav_bytes: bytes, voice_profile: Optional[str]) -> by
         audio, sr = sf.read(buf_in, dtype="float32", always_2d=False)
         if audio.ndim > 1:
             audio = audio.mean(axis=1).astype(np.float32)
+        # Always trim trailing artifacts from voice-cloning models — trim before FX
+        # so the energy detector sees the raw speech, not reverb/comb ringing.
+        audio = _vad_trim(audio, sr)
+        if not _FX_MEGATRON:
+            buf_out = io.BytesIO()
+            sf.write(buf_out, audio, sr, format="WAV", subtype="PCM_16")
+            return buf_out.getvalue()
         if _MEGATRON_SLOWDOWN > 1.0:
             audio = _slowdown_audio(audio, _MEGATRON_SLOWDOWN)
         # Cloned voices already match the reference timbre; only apply a post-pitch

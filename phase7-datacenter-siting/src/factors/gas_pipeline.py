@@ -1,13 +1,8 @@
-"""gas_pipeline — distance to interstate transmission gas pipelines (≥20").
+"""gas_pipeline — distance to interstate transmission gas pipelines.
 
 Hyperscalers are deploying behind-the-meter gas turbines (and looking at
 SMRs) for firm power; pipeline access matters even where grid power is
 the primary source.
-
-Sources:
-  - EIA Natural Gas Pipelines GIS
-  - HIFLD Natural Gas Pipelines
-  - FERC pipeline filings for firm transport availability
 
 Sub-score (closer = better):
    0 mi  -> 1.0
@@ -26,19 +21,17 @@ _ANCHORS = [(0.0, 1.0), (2.0, 0.9), (10.0, 0.5), (30.0, 0.1), (60.0, 0.0)]
 
 
 def score(site) -> FactorResult:
-    pipes = hifld.natgas_pipelines_major()
-    if not pipes:
+    idx = hifld.natgas_pipelines_index()
+    if idx is None or not idx.points:
         return stub_result("gas_pipeline", "HIFLD Natural Gas Pipelines")
-    from ..geo import nearest_distance_mi
-
-    dist_mi = nearest_distance_mi(site.lat, site.lon, pipes)
+    dist_mi = idx.nearest_distance_mi(site.lat, site.lon)
     if dist_mi is None:
         return stub_result("gas_pipeline", "HIFLD Natural Gas Pipelines")
-
     return FactorResult(
         sub_score=piecewise(dist_mi, _ANCHORS),
         provenance={
-            "source": "HIFLD Natural Gas Pipelines (≥20\")",
+            "source": "HIFLD Natural Gas Pipelines",
+            "cache_path": str(idx.geojson_path),
             "nearest_distance_mi": round(dist_mi, 3),
         },
     )

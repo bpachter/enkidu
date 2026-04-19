@@ -75,10 +75,11 @@ for line in sys.stdin:
         sys.stdout = open(os.devnull, "w", encoding="utf-8", errors="replace")
         try:
             wav, sr, _ = tts.infer(
-                ref_file  =voice_path,
-                ref_text  =ref_text,  # pass through: "" \u2192 auto-transcribe, else use as-is
-                gen_text  =text,
-                seed      =-1,
+                ref_file        =voice_path,
+                ref_text        =ref_text,  # pass through: "" → auto-transcribe, else use as-is
+                gen_text        =text,
+                seed            =-1,
+                remove_silence  =True,  # VAD-trim trailing artifacts / hallucinated speech
             )
         finally:
             sys.stdout.close()

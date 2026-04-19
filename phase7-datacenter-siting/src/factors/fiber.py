@@ -1,18 +1,14 @@
 """fiber — long-haul fiber proximity, route diversity, peering distance.
 
-Sources:
-  - HIFLD Long-haul Fiber Optic
-  - FCC Form 477 broadband deployment
-  - PeeringDB (IXPs and carrier-neutral facilities)
-  - State DOT fiber inventories where public
+Sub-score (distance to nearest long-haul route):
+   0 mi  -> 1.00
+   1 mi  -> 0.95
+   5 mi  -> 0.70
+  15 mi  -> 0.35
+  25 mi  -> 0.10
+  50 mi  -> 0.00
 
-Sub-score:
-  Combines (a) distance to nearest long-haul route, (b) count of distinct
-  routes within 5 mi (proxy for diversity), (c) distance to nearest
-  carrier-neutral peering facility.
-
-Kill criterion:
-  No long-haul route within 25 miles.
+Kill criterion: no long-haul route within 25 miles.
 """
 from __future__ import annotations
 
@@ -24,12 +20,10 @@ _DIST_ANCHORS = [(0.0, 1.0), (1.0, 0.95), (5.0, 0.7), (15.0, 0.35), (25.0, 0.1),
 
 
 def score(site) -> FactorResult:
-    routes = hifld.longhaul_fiber()
-    if not routes:
+    idx = hifld.longhaul_fiber_index()
+    if idx is None or not idx.points:
         return stub_result("fiber", "HIFLD Long-haul Fiber")
-    from ..geo import nearest_distance_mi
-
-    dist_mi = nearest_distance_mi(site.lat, site.lon, routes)
+    dist_mi = idx.nearest_distance_mi(site.lat, site.lon)
     if dist_mi is None:
         return stub_result("fiber", "HIFLD Long-haul Fiber")
     sub = piecewise(dist_mi, _DIST_ANCHORS)
@@ -39,6 +33,7 @@ def score(site) -> FactorResult:
         kill=kill,
         provenance={
             "source": "HIFLD Long-haul Fiber",
+            "cache_path": str(idx.geojson_path),
             "nearest_distance_mi": round(dist_mi, 3),
             "kill_threshold_mi": 25.0,
         },

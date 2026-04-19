@@ -354,6 +354,203 @@ def get_portfolio():
         return {"picks": [], "error": str(e), "provenance": None}
 
 
+# ---------------------------------------------------------------------------
+# Phase 7 — Data Center Siting
+# ---------------------------------------------------------------------------
+
+_PHASE7 = _ROOT / "phase7-datacenter-siting"
+
+
+def _import_dcsite():
+    """Lazy import the Phase 7 siting engine; tolerate missing deps."""
+    try:
+        if str(_PHASE7) not in sys.path:
+            sys.path.insert(0, str(_PHASE7))
+        import importlib
+        score_mod = importlib.import_module("src.score")
+        config_mod = importlib.import_module("src.config")
+        return score_mod, config_mod
+    except Exception as e:
+        logger.warning(f"phase7 siting unavailable: {e}")
+        return None, None
+
+
+class SitingRequest(BaseModel):
+    sites: list[dict]  # each: {site_id, lat, lon, ...extras}
+    archetype: str = "training"
+    weight_overrides: dict[str, float] | None = None
+
+
+@app.get("/api/siting/factors")
+def siting_factors():
+    """Return the factor catalog + active default weights for the UI."""
+    score_mod, config_mod = _import_dcsite()
+    if score_mod is None:
+        return JSONResponse(status_code=503, content={"error": "phase7 unavailable"})
+    try:
+        return {
+            "factors": list(config_mod.FACTOR_NAMES),
+            "default_archetype": config_mod.DEFAULT_ARCHETYPE,
+            "weights": {
+                a: config_mod.load_weights(a)  # type: ignore[arg-type]
+                for a in ("training", "inference", "mixed")
+            },
+            "kill_criteria": config_mod.load_kill_criteria(),
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/siting/score")
+def siting_score(req: SitingRequest):
+    """Score a cohort of sites and return composite + per-factor breakdown."""
+    score_mod, config_mod = _import_dcsite()
+    if score_mod is None:
+        return JSONResponse(status_code=503, content={"error": "phase7 unavailable"})
+    try:
+        sites = [
+            score_mod.Site(
+                site_id=str(s["site_id"]),
+                lat=float(s["lat"]),
+                lon=float(s["lon"]),
+                extras={k: v for k, v in s.items() if k not in {"site_id", "lat", "lon"}},
+            )
+            for s in req.sites
+        ]
+        results = score_mod.score_sites(
+            sites,
+            archetype=req.archetype,  # type: ignore[arg-type]
+            weight_overrides=req.weight_overrides,
+        )
+        return {"results": [r.to_dict() for r in results]}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/siting/sample")
+def siting_sample():
+    """Score the bundled sample_sites.csv — handy for the UI's first-paint demo."""
+    score_mod, config_mod = _import_dcsite()
+    if score_mod is None:
+        return JSONResponse(status_code=503, content={"error": "phase7 unavailable"})
+    import csv as _csv
+    sample_csv = _PHASE7 / "config" / "sample_sites.csv"
+    if not sample_csv.exists():
+        return JSONResponse(status_code=404, content={"error": "sample_sites.csv missing"})
+    try:
+        sites = []
+        with sample_csv.open(newline="", encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                sites.append(
+                    score_mod.Site(
+                        site_id=row["site_id"],
+                        lat=float(row["lat"]),
+                        lon=float(row["lon"]),
+                        extras={k: v for k, v in row.items() if k not in {"site_id", "lat", "lon"}},
+                    )
+                )
+        results = score_mod.score_sites(sites, archetype="training")
+        return {"results": [r.to_dict() for r in results]}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# --- Map data: GeoJSON layers + bbox queries -------------------------------
+
+_SITING_LAYER_REGISTRY = {
+    # ui_key -> (source, layer, friendly_name)
+    "transmission": ("hifld", "transmission_230kv_plus", "Transmission ≥230 kV"),
+    "substations":  ("hifld", "substations",             "Substations (in service)"),
+    "pipelines":    ("hifld", "natgas_pipelines",        "Natural Gas Pipelines"),
+    "fiber":        ("hifld", "longhaul_fiber",          "Long-haul Fiber"),
+    "ixp":          ("hifld", "internet_exchanges",      "Internet Exchange Points"),
+}
+
+
+@app.get("/api/siting/layers")
+def siting_layers():
+    """Catalog of map layers + cache status for each."""
+    score_mod, _ = _import_dcsite()
+    if score_mod is None:
+        return JSONResponse(status_code=503, content={"error": "phase7 unavailable"})
+    try:
+        from src.ingest import hifld, eia  # type: ignore
+        hifld_status = hifld.cache_status()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    out: dict = {"layers": [], "data_sources": {}}
+    for ui_key, (src, layer, name) in _SITING_LAYER_REGISTRY.items():
+        cache = hifld_status.get(layer, {})
+        out["layers"].append({
+            "key": ui_key,
+            "source": src,
+            "layer": layer,
+            "name": name,
+            "cached": cache.get("cached", False),
+        })
+    try:
+        out["data_sources"]["eia"] = eia.cache_status()
+    except Exception:
+        pass
+    return out
+
+
+@app.get("/api/siting/layer/{layer_key}")
+def siting_layer_geojson(layer_key: str, bbox: str | None = None, limit: int = 5000):
+    """Return GeoJSON FeatureCollection for a layer, optionally bbox-filtered.
+
+    Args:
+        layer_key: one of the registry keys (transmission, pipelines, fiber, ixp, substations).
+        bbox: "minx,miny,maxx,maxy" in WGS84 (lon/lat). Required for line layers
+              to keep payload bounded.
+        limit: max features returned (default 5000).
+    """
+    if layer_key not in _SITING_LAYER_REGISTRY:
+        return JSONResponse(status_code=404, content={"error": f"unknown layer {layer_key!r}"})
+    score_mod, _ = _import_dcsite()
+    if score_mod is None:
+        return JSONResponse(status_code=503, content={"error": "phase7 unavailable"})
+    try:
+        from src.ingest.spatial_index import load_layer  # type: ignore
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    src, layer, name = _SITING_LAYER_REGISTRY[layer_key]
+    idx = load_layer(src, layer)
+    if idx is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": f"{layer_key} layer not cached — run "
+                         f"`python -m src.cli ingest --factor {layer}` in phase7-datacenter-siting/",
+            },
+        )
+
+    if bbox:
+        try:
+            xmin, ymin, xmax, ymax = (float(x) for x in bbox.split(","))
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "bbox must be 'minx,miny,maxx,maxy'"})
+        feats = idx.features_in_bbox(xmin, ymin, xmax, ymax, limit=limit)
+    else:
+        feats = idx.raw_features[:limit]
+
+    return {
+        "type": "FeatureCollection",
+        "features": feats,
+        "_meta": {
+            "layer": layer_key,
+            "name": name,
+            "source": src,
+            "returned": len(feats),
+            "limit": limit,
+            "bbox": bbox,
+            "cache_path": str(idx.geojson_path),
+        },
+    }
+
+
 def _get_db_path():
     candidates = [
         _ROOT / "phase4-memory" / "enkidu_memory.db",

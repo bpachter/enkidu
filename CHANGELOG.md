@@ -6,6 +6,41 @@ Versioning: `<phase>.<feature>.<patch>` — major version tracks completed phase
 
 ---
 
+## [Unreleased]
+
+### Added — Phase 7 (extended): Data Center Siting Selection
+- New `phase7-datacenter-siting/` module: quantitative siting engine for hyperscale AI data centers, mirroring the QV-screener pattern (transparent multi-factor model, percentile-ranked composites, public-source provenance on every input).
+- 14-factor catalog: power_transmission, power_cost, power_carbon, gas_pipeline, fiber, water, climate, hazard, land_zoning, tax_incentives, permitting, latency, labor, community.
+- Composite scorer (`src/score.py`) emits a single 0-10 score per site with cohort-median imputation, kill-criteria gate, and per-factor provenance preserved in the output.
+- Three archetype weight presets in `config/weights.json`: `training` (power-dominant), `inference` (latency-dominant), `mixed` (default).
+- Public-source ingest stubs (HIFLD, EIA, FERC, ISO/RTO queues, FCC, PeeringDB, USGS, NOAA, FEMA, EPA, IRS OZ, BLS, county GIS) — each documented with format, license, and refresh cadence in `docs/DATA_SOURCES.md`.
+- CLI: `python -m src.cli score --input <csv>` and `python -m src.cli ingest --factor <name>|--all [--max N]` plus `python -m src.cli status`.
+- Phase 6 UI backend wired with `/api/siting/factors`, `/api/siting/score`, `/api/siting/sample`.
+- Smoke run on 10 known hyperscaler hot zones (Abilene, Loudoun, Douglas, Phoenix West Valley, Altoona, Mount Pleasant, Quincy, Sarpy, Clarksville, Temple) returns valid composites end-to-end (uniform 5.0 until ingest lands).
+
+### Added — Phase 7 ingest layer (real public data)
+- `src/ingest/arcgis_client.py`: paginated ArcGIS REST FeatureServer downloader with `tenacity` retries, dated cache writes (`data/raw/<source>/<layer>/<YYYY-MM-DD>/`), manifest provenance.
+- `src/ingest/spatial_index.py`: lazy in-memory spatial index — line geometries densified at ~1mi spacing, 5° degree-prefilter + haversine NN, `nearest_distance_mi()` and `features_in_bbox()` accessors.
+- `src/ingest/hifld.py`: 5 layers wired to live HIFLD ArcGIS endpoints (transmission ≥230 kV, in-service substations, natural gas pipelines, long-haul fiber, internet exchange points).
+- `src/ingest/eia.py`: EIA v2 industrial retail electricity prices (TTM rolling), state-keyed lookups for `power_cost`.
+- Real-data factors: `power_transmission`, `gas_pipeline`, `fiber` (haversine NN to ingested infrastructure with kill flags), `latency` (NN to nearest IXP), `power_cost` (state lookup).
+
+### Added — Phase 6 UI: enterprise-grade siting map (Paces-style)
+- New full-screen workspace toggle (CONSOLE / SITING) in the header.
+- `phase6-ui/client/src/components/SitingPanel.tsx` + `SitingPanel.css` — MapLibre GL dark-matter basemap with:
+  - Candidate-site markers colored by composite score (red→amber→green gradient), score label, halo glow, click-to-detail.
+  - Toggleable overlay layers: transmission, substations, pipelines, long-haul fiber, IXPs — bbox-filtered fetches via `/api/siting/layer/{key}?bbox=` on every map move.
+  - Archetype switcher (training / inference / mixed) with hot rescore.
+  - Per-factor weight sliders (sidebar) bounded to default ±, "RESCORE" button, reset link.
+  - Right-rail ranked list with click-to-fly, kill-flag strikethrough.
+  - Selected-site detail card: composite, kill tags, weighted factor breakdown table, imputed-factors note.
+  - Layer rows show "not cached" hint linking to the `python -m src.cli ingest --all` workflow.
+- New `/api/siting/layers` (catalog + cache status) and `/api/siting/layer/{layer_key}?bbox=&limit=` (GeoJSON FeatureCollection with `_meta` provenance) endpoints in `phase6-ui/server/main.py`.
+- Frontend deps: `maplibre-gl@^5.23.0` + `@types/maplibre-gl`.
+- Frontend API helpers: `fetchSitingFactors`, `fetchSitingSample`, `scoreSites`, `fetchSitingLayers`, `fetchSitingLayerGeoJSON` plus `SiteResultDTO`/`SitingLayer` types.
+
+---
+
 ## [7.1.0] — 2026-04-18
 
 ### Added

@@ -98,3 +98,113 @@ export function createGpuSocket(onStats: (s: object) => void): WebSocket {
   ws.onmessage = (ev) => onStats(JSON.parse(ev.data))
   return ws
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 7 — Data Center Siting
+// ─────────────────────────────────────────────────────────────────────────
+
+export type Archetype = 'training' | 'inference' | 'mixed'
+
+export interface FactorResultDTO {
+  factor: string
+  raw_value: number | null
+  normalized: number          // 0..1
+  weight: number
+  weighted: number            // weight * normalized
+  killed: boolean
+  provenance: Record<string, unknown>
+}
+
+export interface SiteResultDTO {
+  site_id: string
+  lat: number
+  lon: number
+  composite: number           // 0..10
+  factors: Record<string, FactorResultDTO>
+  kill_flags: Record<string, boolean>
+  imputed: string[]
+  provenance: Record<string, unknown>
+  extras?: Record<string, unknown>
+}
+
+export interface SitingFactorsResponse {
+  factors: string[]
+  default_archetype: Archetype
+  weights: Record<Archetype, Record<string, number>>
+  kill_criteria: Record<string, unknown>
+}
+
+export interface SitingLayer {
+  key: string
+  source: string
+  layer: string
+  name: string
+  cached: boolean
+}
+
+export async function fetchSitingFactors(): Promise<SitingFactorsResponse> {
+  const r = await fetch(`${BASE}/api/siting/factors`)
+  if (!r.ok) throw new Error(`siting/factors ${r.status}`)
+  return r.json()
+}
+
+export async function fetchSitingSample(): Promise<{ results: SiteResultDTO[] }> {
+  const r = await fetch(`${BASE}/api/siting/sample`)
+  if (!r.ok) throw new Error(`siting/sample ${r.status}`)
+  return r.json()
+}
+
+export async function scoreSites(payload: {
+  sites: Array<{ site_id: string; lat: number; lon: number; [k: string]: unknown }>
+  archetype?: Archetype
+  weight_overrides?: Record<string, number>
+}): Promise<{ results: SiteResultDTO[] }> {
+  const r = await fetch(`${BASE}/api/siting/score`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!r.ok) throw new Error(`siting/score ${r.status}`)
+  return r.json()
+}
+
+export async function fetchSitingLayers(): Promise<{
+  layers: SitingLayer[]
+  data_sources: Record<string, unknown>
+}> {
+  const r = await fetch(`${BASE}/api/siting/layers`)
+  if (!r.ok) throw new Error(`siting/layers ${r.status}`)
+  return r.json()
+}
+
+export interface SitingLayerGeoJSON {
+  type: 'FeatureCollection'
+  features: GeoJSON.Feature[]
+  _meta: {
+    layer: string
+    name: string
+    source: string
+    returned: number
+    limit: number
+    bbox: string | null
+    cache_path: string
+  }
+}
+
+export async function fetchSitingLayerGeoJSON(
+  layerKey: string,
+  bbox?: [number, number, number, number],
+  limit = 5000,
+): Promise<SitingLayerGeoJSON | { error: string }> {
+  const params = new URLSearchParams()
+  if (bbox) params.set('bbox', bbox.join(','))
+  params.set('limit', String(limit))
+  const r = await fetch(`${BASE}/api/siting/layer/${layerKey}?${params.toString()}`)
+  if (r.status === 404) {
+    const j = await r.json().catch(() => ({}))
+    return { error: j.error ?? 'not cached' }
+  }
+  if (!r.ok) throw new Error(`siting/layer/${layerKey} ${r.status}`)
+  return r.json()
+}
