@@ -551,6 +551,249 @@ def siting_layer_geojson(layer_key: str, bbox: str | None = None, limit: int = 5
     }
 
 
+# --- Live ArcGIS proxy: stream public FeatureServer data on-demand ---------
+#
+# Avoids multi-GB national caches. The frontend sends its current map bbox;
+# we forward a bbox-clipped query to the upstream public FeatureServer and
+# return the GeoJSON. All sources below are public (HIFLD, EIA, NC OneMap).
+
+_HIFLD2 = "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services"
+_NCONEMAP = "https://services.nconemap.gov/secure/rest/services"
+
+LIVE_LAYER_REGISTRY: dict[str, dict] = {
+    # ── Grid ───────────────────────────────────────────────────────────
+    "transmission": {
+        "name": "Transmission lines",
+        "group": "Grid & infrastructure",
+        "url": f"{_HIFLD2}/US_Electric_Power_Transmission_Lines/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "line",
+        "color": "#ff9500",
+        "min_zoom": 5,
+        "source": "HIFLD",
+    },
+    "power_plants": {
+        "name": "Power plants",
+        "group": "Grid & infrastructure",
+        "url": f"{_HIFLD2}/Power_Plants_in_the_US/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "point",
+        "color": "#ff5d2a",
+        "min_zoom": 4,
+        "source": "HIFLD",
+    },
+    "cellular_towers": {
+        "name": "Cellular towers",
+        "group": "Grid & infrastructure",
+        "url": f"{_HIFLD2}/Cellular_Towers_in_the_United_States/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "point",
+        "color": "#ffd000",
+        "min_zoom": 8,
+        "source": "HIFLD",
+    },
+    # ── Pipelines ──────────────────────────────────────────────────────
+    "natgas_pipelines": {
+        "name": "Natural gas pipelines",
+        "group": "Other infrastructure",
+        "url": f"{_HIFLD2}/Natural_Gas_Interstate_and_Intrastate_Pipelines_1/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "line",
+        "color": "#3aa0ff",
+        "min_zoom": 4,
+        "source": "HIFLD",
+    },
+    "crude_oil_pipelines": {
+        "name": "Crude oil pipelines",
+        "group": "Other infrastructure",
+        "url": f"{_HIFLD2}/Crude_Oil_Trunk_Pipelines_1/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "line",
+        "color": "#7a4a2b",
+        "min_zoom": 4,
+        "source": "HIFLD",
+    },
+    "petroleum_pipelines": {
+        "name": "Petroleum products pipelines",
+        "group": "Other infrastructure",
+        "url": f"{_HIFLD2}/Petroleum_Products_Pipelines_1/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "line",
+        "color": "#c97a2b",
+        "min_zoom": 4,
+        "source": "HIFLD",
+    },
+    "hgl_pipelines": {
+        "name": "Hydrocarbon gas liquids",
+        "group": "Other infrastructure",
+        "url": f"{_HIFLD2}/Hydrocarbon_Gas_Liquids_Pipelines_1/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "line",
+        "color": "#a07a40",
+        "min_zoom": 4,
+        "source": "HIFLD",
+    },
+    # ── Boundaries ─────────────────────────────────────────────────────
+    "county_subdivisions": {
+        "name": "County subdivisions",
+        "group": "Boundaries",
+        "url": f"{_HIFLD2}/County_Subdivisions_v1/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "polygon",
+        "color": "#888888",
+        "min_zoom": 7,
+        "source": "HIFLD",
+    },
+    # NC OneMap parcels — point layer at lower zoom, polygon at high zoom
+    "nc_parcels_pts": {
+        "name": "Parcels — points (NC)",
+        "group": "Boundaries",
+        "url": f"{_NCONEMAP}/NC1Map_Parcels/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "objectid,parno,ownname,improvval",
+        "geom": "point",
+        "color": "#ffe14a",
+        "min_zoom": 11,
+        "source": "NC OneMap",
+    },
+    "nc_parcels": {
+        "name": "Parcel outlines (NC)",
+        "group": "Boundaries",
+        "url": f"{_NCONEMAP}/NC1Map_Parcels/FeatureServer/1",
+        "where": "1=1",
+        "out_fields": "objectid,parno,ownname,improvval",
+        "geom": "polygon",
+        "color": "#ffe14a",
+        "min_zoom": 14,
+        "source": "NC OneMap",
+    },
+}
+
+
+def _arcgis_query_url(cfg: dict, bbox: tuple[float, float, float, float], limit: int) -> str:
+    """Build a bbox-filtered ArcGIS REST query URL returning GeoJSON."""
+    from urllib.parse import urlencode
+    xmin, ymin, xmax, ymax = bbox
+    params = {
+        "where": cfg["where"],
+        "outFields": cfg["out_fields"],
+        "f": "geojson",
+        "outSR": 4326,
+        "inSR": 4326,
+        "geometryType": "esriGeometryEnvelope",
+        "spatialRel": "esriSpatialRelIntersects",
+        "geometry": f"{xmin},{ymin},{xmax},{ymax}",
+        "resultRecordCount": min(limit, 4000),
+        "returnGeometry": "true",
+    }
+    return cfg["url"] + "/query?" + urlencode(params)
+
+
+@app.get("/api/siting/proxy/{layer_key}")
+def siting_proxy(layer_key: str, bbox: str | None = None, limit: int = 4000):
+    """Forward a bbox-clipped query to a public ArcGIS FeatureServer.
+
+    Lets the UI show real infrastructure (transmission, pipelines, fiber,
+    parcels, etc.) without bulk-caching multi-GB national datasets locally.
+    """
+    cfg = LIVE_LAYER_REGISTRY.get(layer_key)
+    if not cfg:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"unknown live layer {layer_key!r}"},
+        )
+    if not bbox:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "bbox=minx,miny,maxx,maxy required"},
+        )
+    try:
+        parts = [float(x) for x in bbox.split(",")]
+        if len(parts) != 4:
+            raise ValueError("expected 4 floats")
+        bbox_t = (parts[0], parts[1], parts[2], parts[3])
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"bad bbox: {e}"},
+        )
+
+    try:
+        import requests as _rq  # type: ignore
+        url = _arcgis_query_url(cfg, bbox_t, limit)
+        r = _rq.get(url, timeout=30)
+        if r.status_code != 200:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": f"upstream {layer_key} returned HTTP {r.status_code}",
+                    "upstream_url": cfg["url"],
+                },
+            )
+        # Some MapServers return JSON error objects with HTTP 200
+        try:
+            data = r.json()
+        except Exception:
+            return JSONResponse(
+                status_code=502,
+                content={"error": f"upstream {layer_key}: non-JSON response"},
+            )
+        if isinstance(data, dict) and "error" in data and "features" not in data:
+            return JSONResponse(
+                status_code=502,
+                content={"error": f"upstream {layer_key}: {data.get('error')}"},
+            )
+        feats = data.get("features", []) if isinstance(data, dict) else []
+    except Exception as e:
+        return JSONResponse(
+            status_code=502,
+            content={"error": f"proxy {layer_key} failed: {e}"},
+        )
+
+    return {
+        "type": "FeatureCollection",
+        "features": feats[:limit],
+        "_meta": {
+            "layer": layer_key,
+            "name": cfg["name"],
+            "source": cfg["source"],
+            "group": cfg["group"],
+            "geom": cfg["geom"],
+            "color": cfg["color"],
+            "min_zoom": cfg["min_zoom"],
+            "returned": len(feats),
+            "limit": limit,
+            "bbox": bbox,
+            "live": True,
+        },
+    }
+
+
+@app.get("/api/siting/live_layers")
+def siting_live_layers():
+    """Catalog of live (proxy) overlay layers for the map UI."""
+    out = []
+    for key, cfg in LIVE_LAYER_REGISTRY.items():
+        out.append({
+            "key": key,
+            "name": cfg["name"],
+            "group": cfg["group"],
+            "geom": cfg["geom"],
+            "color": cfg["color"],
+            "min_zoom": cfg["min_zoom"],
+            "source": cfg["source"],
+        })
+    return {"layers": out}
+
+
 def _get_db_path():
     candidates = [
         _ROOT / "phase4-memory" / "enkidu_memory.db",

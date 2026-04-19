@@ -89,6 +89,18 @@
   flex-direction: column;
   gap: 4px;
 }
+.layer-group {
+  margin-bottom: 8px;
+}
+.layer-group-head {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--amber-dim);
+  text-transform: uppercase;
+  padding: 4px 0 2px;
+  border-bottom: 1px solid #1a1620;
+  margin-bottom: 4px;
+}
 .layer-row {
   display: flex;
   justify-content: space-between;

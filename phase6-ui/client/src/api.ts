@@ -293,3 +293,62 @@ export async function fetchSitingLayerGeoJSON(
   }
   throw lastErr
 }
+
+// ── Live (proxy) layers ──────────────────────────────────────────────────
+
+export interface LiveLayer {
+  key: string
+  name: string
+  group: string
+  geom: 'point' | 'line' | 'polygon'
+  color: string
+  min_zoom: number
+  source: string
+}
+
+export async function fetchSitingLiveLayers(): Promise<{ layers: LiveLayer[] }> {
+  return fetchJsonWithRetry<{ layers: LiveLayer[] }>(
+    `${BASE}/api/siting/live_layers`,
+    'siting/live_layers',
+  )
+}
+
+export interface LiveLayerGeoJSON {
+  type: 'FeatureCollection'
+  features: GeoJSON.Feature[]
+  _meta: {
+    layer: string
+    name: string
+    source: string
+    group: string
+    geom: 'point' | 'line' | 'polygon'
+    color: string
+    min_zoom: number
+    returned: number
+    limit: number
+    bbox: string | null
+    live: true
+  }
+}
+
+export async function fetchSitingProxyGeoJSON(
+  layerKey: string,
+  bbox: [number, number, number, number],
+  limit = 4000,
+): Promise<LiveLayerGeoJSON | { error: string }> {
+  const params = new URLSearchParams()
+  params.set('bbox', bbox.join(','))
+  params.set('limit', String(limit))
+  const url = `${BASE}/api/siting/proxy/${layerKey}?${params.toString()}`
+  try {
+    const r = await fetch(url)
+    if (!r.ok) {
+      let j: { error?: string } = {}
+      try { j = await r.json() } catch { /* ignore */ }
+      return { error: j.error ?? `HTTP ${r.status}` }
+    }
+    return await parseJsonOrThrow<LiveLayerGeoJSON>(r, `siting/proxy/${layerKey}`)
+  } catch (e) {
+    return { error: String(e) }
+  }
+}

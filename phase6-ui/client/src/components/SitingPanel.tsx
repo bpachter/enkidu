@@ -5,33 +5,19 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   fetchSitingFactors,
   fetchSitingSample,
-  fetchSitingLayers,
-  fetchSitingLayerGeoJSON,
+  fetchSitingLiveLayers,
+  fetchSitingProxyGeoJSON,
   scoreSites,
   type Archetype,
+  type LiveLayer,
   type SiteResultDTO,
   type SitingFactorsResponse,
-  type SitingLayer,
 } from '../api'
 import './SitingPanel.css'
 
 // Free MapLibre style — CARTO dark matter (no API key)
 const STYLE_URL =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-
-// Map UI layer key -> color/visual config for overlays
-const LAYER_VISUALS: Record<string, {
-  color: string
-  width?: number
-  radius?: number
-  type: 'line' | 'circle'
-}> = {
-  transmission: { color: '#ff9500', width: 1.4, type: 'line' },
-  pipelines:    { color: '#ff1a40', width: 1.0, type: 'line' },
-  fiber:        { color: '#00e5ff', width: 0.9, type: 'line' },
-  substations:  { color: '#ff9500', radius: 2.5, type: 'circle' },
-  ixp:          { color: '#39d353', radius: 4.0, type: 'circle' },
-}
 
 function colorForScore(score: number, killed: boolean): string {
   if (killed) return '#3a1018'
@@ -108,8 +94,9 @@ export default function SitingPanel() {
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null)
 
   const [factorsCatalog, setFactorsCatalog] = useState<SitingFactorsResponse | null>(null)
-  const [layers, setLayers] = useState<SitingLayer[]>([])
+  const [layers, setLayers] = useState<LiveLayer[]>([])
   const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>({})
+  const [zoom, setZoom] = useState<number>(6)
 
   const [archetype, setArchetype] = useState<Archetype>('training')
   const [weightOverrides, setWeightOverrides] = useState<Record<string, number>>({})
@@ -122,14 +109,21 @@ export default function SitingPanel() {
   const [error, setError] = useState<string | null>(null)
 
   // ── init: catalog + layer list + sample sites ─────────────────────────
-  useEffect(() => {
+  const loadCatalog = useCallback(() => {
+    setError(null)
     fetchSitingFactors().then(setFactorsCatalog).catch(e => setError(String(e)))
-    fetchSitingLayers().then(r => {
+    fetchSitingLiveLayers().then(r => {
       setLayers(r.layers)
-      const enabled: Record<string, boolean> = {}
-      for (const l of r.layers) enabled[l.key] = false
-      setEnabledLayers(enabled)
+      setEnabledLayers(prev => {
+        const next: Record<string, boolean> = {}
+        for (const l of r.layers) next[l.key] = prev[l.key] ?? false
+        return next
+      })
     }).catch(e => setError(String(e)))
+  }, [])
+
+  useEffect(() => {
+    loadCatalog()
     fetchSitingSample()
       .then(async (r) => {
         if (Array.isArray(r.results)) {
@@ -170,8 +164,9 @@ export default function SitingPanel() {
     const map = new maplibregl.Map({
       container: mapDivRef.current,
       style: STYLE_URL,
-      center: [-96, 38.5],
-      zoom: 3.6,
+      // Center on North Carolina (initial scope per user)
+      center: [-79.2, 35.5],
+      zoom: 6.2,
       attributionControl: { compact: true },
     })
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
@@ -180,6 +175,7 @@ export default function SitingPanel() {
     const updateBbox = () => {
       const b = map.getBounds()
       setBbox([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
+      setZoom(map.getZoom())
     }
     map.on('load', () => {
       mapRef.current = map
@@ -187,6 +183,7 @@ export default function SitingPanel() {
       updateBbox()
     })
     map.on('moveend', updateBbox)
+    map.on('zoomend', updateBbox)
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
@@ -263,55 +260,82 @@ export default function SitingPanel() {
     }
   }, [sites, mapReady])
 
-  // ── overlay layers: load on toggle / bbox change ──────────────────────
-  const reloadOverlay = useCallback(async (key: string) => {
-    const map = mapRef.current
-    if (!map) return
-    const vis = LAYER_VISUALS[key]
-    if (!vis) return
-    setLayerStatus(s => ({ ...s, [key]: 'loading' }))
-    const data = await fetchSitingLayerGeoJSON(key, bbox ?? undefined, 4000)
-    if ('error' in data) {
-      setLayerStatus(s => ({ ...s, [key]: 'missing' }))
-      return
-    }
-    const SRC = `ovl-${key}-src`
-    const LYR = `ovl-${key}-lyr`
-    if (map.getSource(SRC)) {
-      ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
-    } else {
-      map.addSource(SRC, { type: 'geojson', data: data as any })
-      if (vis.type === 'line') {
-        map.addLayer({
-          id: LYR, type: 'line', source: SRC,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': vis.color, 'line-width': vis.width ?? 1, 'line-opacity': 0.85 },
-        }, 'sites-halo')
-      } else {
-        map.addLayer({
-          id: LYR, type: 'circle', source: SRC,
-          paint: {
-            'circle-radius': vis.radius ?? 3,
-            'circle-color': vis.color,
-            'circle-stroke-color': '#000',
-            'circle-stroke-width': 0.6,
-            'circle-opacity': 0.9,
-          },
-        }, 'sites-halo')
-      }
-    }
-    setLayerStatus(s => ({ ...s, [key]: 'ok' }))
-  }, [bbox])
+  // ── overlay layers: live ArcGIS proxy, bbox-clipped ───────────────────
+  const layersByKey = useMemo(() => {
+    const m = new Map<string, LiveLayer>()
+    for (const l of layers) m.set(l.key, l)
+    return m
+  }, [layers])
 
   const removeOverlay = useCallback((key: string) => {
     const map = mapRef.current
     if (!map) return
     const SRC = `ovl-${key}-src`
     const LYR = `ovl-${key}-lyr`
+    const LYR_FILL = `ovl-${key}-fill`
     if (map.getLayer(LYR)) map.removeLayer(LYR)
+    if (map.getLayer(LYR_FILL)) map.removeLayer(LYR_FILL)
     if (map.getSource(SRC)) map.removeSource(SRC)
     setLayerStatus(s => ({ ...s, [key]: 'idle' }))
   }, [])
+
+  const reloadOverlay = useCallback(async (key: string) => {
+    const map = mapRef.current
+    if (!map) return
+    const lyr = layersByKey.get(key)
+    if (!lyr) return
+    if (!bbox) return
+    if (zoom < lyr.min_zoom) {
+      setLayerStatus(s => ({ ...s, [key]: 'idle' }))
+      // remove any stale layer if we zoomed out below threshold
+      removeOverlay(key)
+      return
+    }
+    setLayerStatus(s => ({ ...s, [key]: 'loading' }))
+    const data = await fetchSitingProxyGeoJSON(key, bbox, 4000)
+    if ('error' in data) {
+      setLayerStatus(s => ({ ...s, [key]: 'error' }))
+      return
+    }
+    const SRC = `ovl-${key}-src`
+    const LYR = `ovl-${key}-lyr`
+    const LYR_FILL = `ovl-${key}-fill`
+    if (map.getSource(SRC)) {
+      ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
+    } else {
+      map.addSource(SRC, { type: 'geojson', data: data as any })
+      if (lyr.geom === 'line') {
+        map.addLayer({
+          id: LYR, type: 'line', source: SRC,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': lyr.color, 'line-width': 1.2, 'line-opacity': 0.9 },
+        }, 'sites-halo')
+      } else if (lyr.geom === 'point') {
+        map.addLayer({
+          id: LYR, type: 'circle', source: SRC,
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 10, 5],
+            'circle-color': lyr.color,
+            'circle-stroke-color': '#000',
+            'circle-stroke-width': 0.6,
+            'circle-opacity': 0.95,
+          },
+        }, 'sites-halo')
+      } else {
+        // polygon
+        map.addLayer({
+          id: LYR_FILL, type: 'fill', source: SRC,
+          paint: { 'fill-color': lyr.color, 'fill-opacity': 0.10 },
+        }, 'sites-halo')
+        map.addLayer({
+          id: LYR, type: 'line', source: SRC,
+          paint: { 'line-color': lyr.color, 'line-width': 0.9, 'line-opacity': 0.85 },
+        }, 'sites-halo')
+      }
+    }
+    setLayerStatus(s => ({ ...s, [key]: 'ok' }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bbox, zoom, layersByKey])
 
   // toggle handler
   function toggleLayer(key: string) {
@@ -419,41 +443,47 @@ export default function SitingPanel() {
 
         <section className="siting-block">
           <div className="siting-block-head">
-            <span>OVERLAYS</span>
-            <span className="siting-block-meta">{bbox ? 'bbox-clipped' : ''}</span>
+            <span>OVERLAYS · LIVE</span>
+            <span className="siting-block-meta">z{zoom.toFixed(1)} · bbox</span>
           </div>
-          <ul className="layer-list">
-            {layers.map(l => {
-              const st = layerStatus[l.key] ?? 'idle'
-              const dotColor = LAYER_VISUALS[l.key]?.color ?? '#888'
-              const note =
-                st === 'loading' ? '…' :
-                st === 'missing' ? 'not cached' :
-                st === 'error'   ? 'err' :
-                !l.cached        ? 'not cached' : ''
-              return (
-                <li key={l.key} className={`layer-row ${enabledLayers[l.key] ? 'on' : ''}`}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={!!enabledLayers[l.key]}
-                      onChange={() => toggleLayer(l.key)}
-                      disabled={!l.cached}
-                    />
-                    <span className="layer-dot" style={{ background: dotColor }} />
-                    <span className="layer-name">{l.name}</span>
-                  </label>
-                  <span className="layer-note">{note}</span>
-                </li>
-              )
-            })}
-          </ul>
-          {layers.some(l => !l.cached) && (
-            <div className="ingest-hint">
-              Run <code>python -m src.cli ingest --all</code> in
-              <br/><code>phase7-datacenter-siting/</code> to enable overlays.
+          {Object.entries(
+            layers.reduce<Record<string, LiveLayer[]>>((acc, l) => {
+              (acc[l.group] ||= []).push(l)
+              return acc
+            }, {}),
+          ).map(([group, items]) => (
+            <div key={group} className="layer-group">
+              <div className="layer-group-head">{group}</div>
+              <ul className="layer-list">
+                {items.map(l => {
+                  const st = layerStatus[l.key] ?? 'idle'
+                  const tooFar = zoom < l.min_zoom
+                  const note =
+                    tooFar           ? `zoom ≥ ${l.min_zoom}` :
+                    st === 'loading' ? '…' :
+                    st === 'error'   ? 'err' :
+                    st === 'ok'      ? '●' : ''
+                  return (
+                    <li key={l.key} className={`layer-row ${enabledLayers[l.key] ? 'on' : ''}`}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={!!enabledLayers[l.key]}
+                          onChange={() => toggleLayer(l.key)}
+                        />
+                        <span className="layer-dot" style={{ background: l.color }} />
+                        <span className="layer-name">{l.name}</span>
+                      </label>
+                      <span className="layer-note">{note}</span>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
-          )}
+          ))}
+          <div className="ingest-hint">
+            Live ArcGIS proxy · HIFLD + NC OneMap · pan/zoom to load tiles.
+          </div>
         </section>
 
         <section className="siting-block">
@@ -485,7 +515,12 @@ export default function SitingPanel() {
           </button>
         </section>
 
-        {error && <div className="siting-err">{error}</div>}
+        {error && (
+          <div className="siting-err">
+            <span>{error}</span>
+            <button className="link-btn" onClick={loadCatalog}>retry</button>
+          </div>
+        )}
       </aside>
 
       {/* ── Map ── */}
