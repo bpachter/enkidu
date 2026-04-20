@@ -73,12 +73,15 @@ class _AlienFXBackend:
     All methods are no-ops if the DLL is not present.
     """
 
-    # Prefer the AWCC-bundled LightFX.dll over the legacy System32 stub.
-    # The AWCC SDK x64 DLL actually routes calls to the running AWCC service.
+    # LightFX.dll search order.
+    # NOTE: AWCC 5+ removed LightFX.dll entirely — these paths are for legacy
+    # AWCC 4.x installs.  On modern systems this backend will silently no-op.
+    # Alternative: install OpenRGB (https://openrgb.org) and use its SDK server.
     _DLL_SEARCH_ORDER = [
         r"C:\Program Files\Alienware\Alienware Command Center\AlienFX SDK\DLLs\x64\LightFX.dll",
         r"C:\Program Files\Alienware\Alienware Command Center\AlienFX64.dll",
-        "LightFX",   # fallback — System32 stub (may do nothing on AWCC 5+)
+        r"C:\Program Files (x86)\Alienware\Alienware Command Center\LightFX.dll",
+        "LightFX",   # System32 stub — present on legacy AWCC installs only
     ]
 
     def __init__(self):
@@ -126,7 +129,11 @@ class _AlienFXBackend:
                 return
             except OSError:
                 logger.debug(f"lighting: {dll_path!r} not loadable, trying next")
-        logger.debug("lighting: no working LightFX DLL found")
+        logger.warning(
+            "lighting: AlienFX unavailable — LightFX.dll not found. "
+            "AWCC 5+ removed this DLL. Tower lighting disabled. "
+            "Install OpenRGB for modern Alienware lighting support."
+        )
 
     def set_all(self, r: int, g: int, b: int, brightness: int = 255) -> None:
         """Set all zones to one color using LFX_Light(LFX_ALL, packed_dword)."""

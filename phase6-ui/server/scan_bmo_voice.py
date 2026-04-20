@@ -85,7 +85,7 @@ def convert_to_mono_float(src: Path, dst: Path) -> None:
     _run([
         "ffmpeg", "-y", "-i", str(src),
         "-ac", "1", "-ar", str(_SR),
-        "-sample_fmt", "f32le",
+        "-sample_fmt", "flt",
         "-f", "f32le", str(dst),
     ])
 
