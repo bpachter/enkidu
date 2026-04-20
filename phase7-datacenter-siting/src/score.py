@@ -62,8 +62,11 @@ def score_sites(
     if weight_overrides:
         weights.update(weight_overrides)
         s = sum(weights.values())
-        if s > 0:
-            weights = {k: v / s for k, v in weights.items()}  # renormalize
+        if s <= 0:
+            raise ValueError(
+                "weight_overrides leave total weight <= 0; cannot renormalize"
+            )
+        weights = {k: v / s for k, v in weights.items()}  # renormalize
 
     # Pass 1: collect per-factor results across the cohort
     per_factor: dict[str, list[FactorResult]] = {f: [] for f in config.FACTOR_NAMES}

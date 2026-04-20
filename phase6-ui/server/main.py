@@ -560,6 +560,30 @@ def siting_layer_geojson(layer_key: str, bbox: str | None = None, limit: int = 5
 _HIFLD2 = "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services"
 _NCONEMAP = "https://services.nconemap.gov/secure/rest/services"
 
+# State bboxes (minx, miny, maxx, maxy) — used by the UI's state selector
+US_STATE_BBOX: dict[str, tuple[float, float, float, float]] = {
+    "NC": (-84.32, 33.84, -75.46, 36.59),
+    "SC": (-83.35, 32.03, -78.54, 35.22),
+    "FL": (-87.63, 24.40, -80.03, 31.00),
+    "IN": (-88.10, 37.77, -84.78, 41.76),
+    "OH": (-84.82, 38.40, -80.52, 41.98),
+    "KY": (-89.57, 36.50, -81.96, 39.15),
+    "GA": (-85.61, 30.36, -80.84, 34.99),
+    "VA": (-83.68, 36.54, -75.24, 39.47),
+    "TN": (-90.31, 34.98, -81.65, 36.68),
+    "TX": (-106.65, 25.84, -93.51, 36.50),
+    "CONUS": (-125.0, 24.5, -66.95, 49.5),
+}
+
+# Duke Energy operating territory (informational; UI surfaces this)
+DUKE_STATES = ["NC", "SC", "FL", "IN", "OH", "KY"]
+
+_STATE_FULL_NAME: dict[str, str] = {
+    "NC": "North Carolina", "SC": "South Carolina", "FL": "Florida",
+    "IN": "Indiana", "OH": "Ohio", "KY": "Kentucky",
+    "GA": "Georgia", "VA": "Virginia", "TN": "Tennessee", "TX": "Texas",
+}
+
 LIVE_LAYER_REGISTRY: dict[str, dict] = {
     # ── Grid ───────────────────────────────────────────────────────────
     "transmission": {
@@ -567,11 +591,28 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "group": "Grid & infrastructure",
         "url": f"{_HIFLD2}/US_Electric_Power_Transmission_Lines/FeatureServer/0",
         "where": "1=1",
-        "out_fields": "*",
+        "out_fields": "OBJECTID,VOLTAGE,VOLT_CLASS,OWNER,SUB_1,SUB_2,TYPE,STATUS",
         "geom": "line",
-        "color": "#ff9500",
+        # Default color (replaced by data-driven voltage ramp on client)
+        "color": "#ff3d7f",
+        "style": "voltage",
         "min_zoom": 5,
         "source": "HIFLD",
+        # Pagination upgrade — allows the line layer to render fully without gaps
+        "max_records": 12000,
+    },
+    "transmission_duke": {
+        "name": "Transmission — Duke-owned",
+        "group": "Grid & infrastructure",
+        "url": f"{_HIFLD2}/US_Electric_Power_Transmission_Lines/FeatureServer/0",
+        "where": "OWNER LIKE '%DUKE%'",
+        "out_fields": "OBJECTID,VOLTAGE,VOLT_CLASS,OWNER,SUB_1,SUB_2,TYPE,STATUS",
+        "geom": "line",
+        "color": "#ff5a3c",
+        "style": "voltage",
+        "min_zoom": 5,
+        "source": "HIFLD",
+        "max_records": 8000,
     },
     "power_plants": {
         "name": "Power plants",
@@ -580,9 +621,22 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "where": "1=1",
         "out_fields": "*",
         "geom": "point",
-        "color": "#ff5d2a",
+        "color": "#ff7a00",
         "min_zoom": 4,
         "source": "HIFLD",
+        "max_records": 6000,
+    },
+    "power_plants_duke": {
+        "name": "Power plants — Duke",
+        "group": "Grid & infrastructure",
+        "url": f"{_HIFLD2}/Power_Plants_in_the_US/FeatureServer/0",
+        "where": "Utility_Na LIKE '%DUKE%' OR Utility_Na LIKE '%Duke%'",
+        "out_fields": "*",
+        "geom": "point",
+        "color": "#ff2db5",
+        "min_zoom": 4,
+        "source": "HIFLD",
+        "max_records": 1000,
     },
     "cellular_towers": {
         "name": "Cellular towers",
@@ -592,8 +646,9 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "out_fields": "*",
         "geom": "point",
         "color": "#ffd000",
-        "min_zoom": 8,
+        "min_zoom": 9,
         "source": "HIFLD",
+        "max_records": 4000,
     },
     # ── Pipelines ──────────────────────────────────────────────────────
     "natgas_pipelines": {
@@ -606,6 +661,7 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "color": "#3aa0ff",
         "min_zoom": 4,
         "source": "HIFLD",
+        "max_records": 8000,
     },
     "crude_oil_pipelines": {
         "name": "Crude oil pipelines",
@@ -614,9 +670,10 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "where": "1=1",
         "out_fields": "*",
         "geom": "line",
-        "color": "#7a4a2b",
+        "color": "#a04d2a",
         "min_zoom": 4,
         "source": "HIFLD",
+        "max_records": 4000,
     },
     "petroleum_pipelines": {
         "name": "Petroleum products pipelines",
@@ -625,9 +682,10 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "where": "1=1",
         "out_fields": "*",
         "geom": "line",
-        "color": "#c97a2b",
+        "color": "#e65cff",
         "min_zoom": 4,
         "source": "HIFLD",
+        "max_records": 4000,
     },
     "hgl_pipelines": {
         "name": "Hydrocarbon gas liquids",
@@ -639,6 +697,32 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "color": "#a07a40",
         "min_zoom": 4,
         "source": "HIFLD",
+        "max_records": 4000,
+    },
+    # ── Connectivity ───────────────────────────────────────────────────
+    "nc_broadband_status": {
+        "name": "Broadband status (NC)",
+        "group": "Connectivity",
+        "url": f"{_NCONEMAP}/Broadband/NC_Broadband_Status_Latest/MapServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "polygon",
+        "color": "#00e5ff",
+        "min_zoom": 7,
+        "source": "NC OneMap",
+        "max_records": 6000,
+    },
+    "nc_broadband_funded": {
+        "name": "Broadband funded sites (NC)",
+        "group": "Connectivity",
+        "url": f"{_NCONEMAP}/Broadband/NC_Broadband_Funded_Locations_Table/FeatureServer/0",
+        "where": "1=1",
+        "out_fields": "*",
+        "geom": "point",
+        "color": "#00ffae",
+        "min_zoom": 8,
+        "source": "NC OneMap",
+        "max_records": 4000,
     },
     # ── Boundaries ─────────────────────────────────────────────────────
     "county_subdivisions": {
@@ -646,13 +730,14 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "group": "Boundaries",
         "url": f"{_HIFLD2}/County_Subdivisions_v1/FeatureServer/0",
         "where": "1=1",
-        "out_fields": "*",
+        "out_fields": "OBJECTID,NAME,STATE_NAME,COUNTY,GEOID",
         "geom": "polygon",
-        "color": "#888888",
-        "min_zoom": 7,
+        "color": "#a0a8b4",
+        "style": "moratorium",
+        "min_zoom": 6,
         "source": "HIFLD",
+        "max_records": 4000,
     },
-    # NC OneMap parcels — point layer at lower zoom, polygon at high zoom
     "nc_parcels_pts": {
         "name": "Parcels — points (NC)",
         "group": "Boundaries",
@@ -660,30 +745,69 @@ LIVE_LAYER_REGISTRY: dict[str, dict] = {
         "where": "1=1",
         "out_fields": "objectid,parno,ownname,improvval",
         "geom": "point",
-        "color": "#ffe14a",
+        "color": "#fff04a",
         "min_zoom": 11,
         "source": "NC OneMap",
+        "max_records": 4000,
     },
     "nc_parcels": {
         "name": "Parcel outlines (NC)",
         "group": "Boundaries",
         "url": f"{_NCONEMAP}/NC1Map_Parcels/FeatureServer/1",
         "where": "1=1",
-        "out_fields": "objectid,parno,ownname,improvval",
+        "out_fields": "*",
         "geom": "polygon",
-        "color": "#ffe14a",
+        "color": "#fff04a",
         "min_zoom": 14,
         "source": "NC OneMap",
+        "max_records": 4000,
     },
 }
 
 
-def _arcgis_query_url(cfg: dict, bbox: tuple[float, float, float, float], limit: int) -> str:
+# Curated list of US counties with documented data-center moratoriums or
+# active opposition. Sources tracked publicly (Data Center Watch, news, county
+# meeting minutes). Render light-red over the county_subdivisions overlay.
+# (state, county_name) — match against feature properties STATE_NAME + NAME.
+COUNTY_MORATORIUMS: list[dict] = [
+    {"state": "Virginia",       "county": "Prince William",  "status": "moratorium",   "url": "https://www.pwcva.gov/"},
+    {"state": "Virginia",       "county": "Fauquier",        "status": "opposition",   "url": ""},
+    {"state": "Virginia",       "county": "Culpeper",        "status": "opposition",   "url": ""},
+    {"state": "Georgia",        "county": "Coweta",          "status": "moratorium",   "url": ""},
+    {"state": "Georgia",        "county": "Fayette",         "status": "moratorium",   "url": ""},
+    {"state": "Georgia",        "county": "Douglas",         "status": "opposition",   "url": ""},
+    {"state": "Georgia",        "county": "Newton",          "status": "opposition",   "url": ""},
+    {"state": "Indiana",        "county": "Hamilton",        "status": "opposition",   "url": ""},
+    {"state": "Indiana",        "county": "Boone",           "status": "moratorium",   "url": ""},
+    {"state": "North Carolina", "county": "Chatham",         "status": "opposition",   "url": ""},
+    {"state": "North Carolina", "county": "Person",          "status": "opposition",   "url": ""},
+    {"state": "South Carolina", "county": "York",            "status": "opposition",   "url": ""},
+    {"state": "Texas",          "county": "Hood",            "status": "opposition",   "url": ""},
+    {"state": "Texas",          "county": "Bastrop",         "status": "opposition",   "url": ""},
+    {"state": "Maryland",       "county": "Frederick",       "status": "moratorium",   "url": ""},
+    {"state": "Maryland",       "county": "Prince George's", "status": "opposition",   "url": ""},
+    {"state": "Arizona",        "county": "Pinal",           "status": "opposition",   "url": ""},
+    {"state": "Oregon",         "county": "Morrow",          "status": "opposition",   "url": ""},
+    {"state": "Oregon",         "county": "Umatilla",        "status": "opposition",   "url": ""},
+]
+
+
+def _arcgis_query_url(
+    cfg: dict,
+    bbox: tuple[float, float, float, float],
+    *,
+    page_size: int,
+    offset: int,
+    extra_where: str | None = None,
+) -> str:
     """Build a bbox-filtered ArcGIS REST query URL returning GeoJSON."""
     from urllib.parse import urlencode
     xmin, ymin, xmax, ymax = bbox
+    where = cfg["where"]
+    if extra_where:
+        where = f"({where}) AND ({extra_where})" if where != "1=1" else extra_where
     params = {
-        "where": cfg["where"],
+        "where": where,
         "outFields": cfg["out_fields"],
         "f": "geojson",
         "outSR": 4326,
@@ -691,18 +815,25 @@ def _arcgis_query_url(cfg: dict, bbox: tuple[float, float, float, float], limit:
         "geometryType": "esriGeometryEnvelope",
         "spatialRel": "esriSpatialRelIntersects",
         "geometry": f"{xmin},{ymin},{xmax},{ymax}",
-        "resultRecordCount": min(limit, 4000),
+        "resultRecordCount": page_size,
+        "resultOffset": offset,
         "returnGeometry": "true",
     }
     return cfg["url"] + "/query?" + urlencode(params)
 
 
 @app.get("/api/siting/proxy/{layer_key}")
-def siting_proxy(layer_key: str, bbox: str | None = None, limit: int = 4000):
+def siting_proxy(
+    layer_key: str,
+    bbox: str | None = None,
+    limit: int = 8000,
+    state: str | None = None,
+):
     """Forward a bbox-clipped query to a public ArcGIS FeatureServer.
 
-    Lets the UI show real infrastructure (transmission, pipelines, fiber,
-    parcels, etc.) without bulk-caching multi-GB national datasets locally.
+    Pages through ArcGIS's per-request cap (typically 2000) so that line
+    layers like transmission render contiguously without gaps. ``state``
+    optionally adds a STATE='XX' WHERE-clause for layers with that field.
     """
     cfg = LIVE_LAYER_REGISTRY.get(layer_key)
     if not cfg:
@@ -726,32 +857,73 @@ def siting_proxy(layer_key: str, bbox: str | None = None, limit: int = 4000):
             content={"error": f"bad bbox: {e}"},
         )
 
+    extra_where: str | None = None
+    if state:
+        # Transmission has no STATE field; bbox alone constrains it.
+        # Power plants use the full state name in a "State" column.
+        if layer_key in {"power_plants", "power_plants_duke"}:
+            full = _STATE_FULL_NAME.get(state.upper())
+            if full:
+                extra_where = f"State='{full}'"
+
+    cap = int(cfg.get("max_records", 4000))
+    target = min(limit, cap)
+    page_size = 2000  # ArcGIS hard cap per request for most services
+
+    feats: list[dict] = []
+    truncated = False
     try:
         import requests as _rq  # type: ignore
-        url = _arcgis_query_url(cfg, bbox_t, limit)
-        r = _rq.get(url, timeout=30)
-        if r.status_code != 200:
-            return JSONResponse(
-                status_code=502,
-                content={
-                    "error": f"upstream {layer_key} returned HTTP {r.status_code}",
-                    "upstream_url": cfg["url"],
-                },
+        offset = 0
+        while len(feats) < target:
+            url = _arcgis_query_url(
+                cfg, bbox_t,
+                page_size=min(page_size, target - len(feats)),
+                offset=offset,
+                extra_where=extra_where,
             )
-        # Some MapServers return JSON error objects with HTTP 200
-        try:
-            data = r.json()
-        except Exception:
-            return JSONResponse(
-                status_code=502,
-                content={"error": f"upstream {layer_key}: non-JSON response"},
-            )
-        if isinstance(data, dict) and "error" in data and "features" not in data:
-            return JSONResponse(
-                status_code=502,
-                content={"error": f"upstream {layer_key}: {data.get('error')}"},
-            )
-        feats = data.get("features", []) if isinstance(data, dict) else []
+            r = _rq.get(url, timeout=30)
+            if r.status_code != 200:
+                if not feats:
+                    return JSONResponse(
+                        status_code=502,
+                        content={
+                            "error": f"upstream {layer_key} returned HTTP {r.status_code}",
+                            "upstream_url": cfg["url"],
+                        },
+                    )
+                truncated = True
+                break
+            try:
+                data = r.json()
+            except Exception:
+                if not feats:
+                    return JSONResponse(
+                        status_code=502,
+                        content={"error": f"upstream {layer_key}: non-JSON response"},
+                    )
+                truncated = True
+                break
+            if isinstance(data, dict) and "error" in data and "features" not in data:
+                if not feats:
+                    return JSONResponse(
+                        status_code=502,
+                        content={"error": f"upstream {layer_key}: {data.get('error')}"},
+                    )
+                truncated = True
+                break
+            page = data.get("features", []) if isinstance(data, dict) else []
+            if not page:
+                break
+            feats.extend(page)
+            props = data.get("properties") or {}
+            exceeded = bool(props.get("exceededTransferLimit") or data.get("exceededTransferLimit"))
+            if not exceeded and len(page) < page_size:
+                break
+            if len(feats) >= target:
+                truncated = True
+                break
+            offset += len(page)
     except Exception as e:
         return JSONResponse(
             status_code=502,
@@ -760,7 +932,7 @@ def siting_proxy(layer_key: str, bbox: str | None = None, limit: int = 4000):
 
     return {
         "type": "FeatureCollection",
-        "features": feats[:limit],
+        "features": feats[:target],
         "_meta": {
             "layer": layer_key,
             "name": cfg["name"],
@@ -768,10 +940,13 @@ def siting_proxy(layer_key: str, bbox: str | None = None, limit: int = 4000):
             "group": cfg["group"],
             "geom": cfg["geom"],
             "color": cfg["color"],
+            "style": cfg.get("style"),
             "min_zoom": cfg["min_zoom"],
             "returned": len(feats),
-            "limit": limit,
+            "limit": target,
             "bbox": bbox,
+            "state": state,
+            "truncated": truncated,
             "live": True,
         },
     }
@@ -788,10 +963,116 @@ def siting_live_layers():
             "group": cfg["group"],
             "geom": cfg["geom"],
             "color": cfg["color"],
+            "style": cfg.get("style"),
             "min_zoom": cfg["min_zoom"],
             "source": cfg["source"],
         })
     return {"layers": out}
+
+
+@app.get("/api/siting/states")
+def siting_states():
+    """List of selectable states with bboxes + Duke-territory flags."""
+    return {
+        "states": [
+            {
+                "code": code,
+                "bbox": list(bbox),
+                "duke": code in DUKE_STATES,
+            }
+            for code, bbox in US_STATE_BBOX.items()
+        ],
+        "duke_states": DUKE_STATES,
+    }
+
+
+@app.get("/api/siting/moratoriums")
+def siting_moratoriums():
+    """Curated list of counties with documented data-center opposition."""
+    return {"counties": COUNTY_MORATORIUMS}
+
+
+@app.get("/api/siting/parcel_detail")
+def siting_parcel_detail(
+    lat: float,
+    lon: float,
+    radius_mi: float = 5.0,
+):
+    """Compute proximity stats for a clicked parcel: distance to nearest
+    transmission line, gas pipeline, substation/plant, etc.
+
+    Pulls a small bbox of upstream features around the lat/lon and returns
+    the minimum great-circle distance to any vertex of each layer."""
+    from math import asin, cos, radians, sin, sqrt
+    import requests as _rq  # type: ignore
+
+    def _haversine_mi(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        R = 3958.7613
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = (sin(dlat / 2) ** 2 +
+             cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2)
+        return 2 * R * asin(sqrt(a))
+
+    # Build an envelope of ~radius_mi around the point (~1deg lat = 69 mi)
+    deg = max(0.05, radius_mi / 69.0)
+    bbox = (lon - deg, lat - deg, lon + deg, lat + deg)
+
+    targets = [
+        ("transmission",       "Nearest transmission line"),
+        ("natgas_pipelines",   "Nearest natural gas pipeline"),
+        ("power_plants",       "Nearest power plant"),
+    ]
+    out: dict = {"lat": lat, "lon": lon, "radius_mi": radius_mi, "results": []}
+    for key, label in targets:
+        cfg = LIVE_LAYER_REGISTRY.get(key)
+        if not cfg:
+            continue
+        url = _arcgis_query_url(cfg, bbox, page_size=2000, offset=0)
+        try:
+            r = _rq.get(url, timeout=20)
+            data = r.json() if r.status_code == 200 else {}
+        except Exception:
+            data = {}
+        feats = data.get("features", []) if isinstance(data, dict) else []
+        best: float | None = None
+        best_props: dict = {}
+        for f in feats:
+            geom = f.get("geometry") or {}
+            t = geom.get("type")
+            coords = geom.get("coordinates") or []
+
+            def _walk(coords_):
+                vals = []
+                for c in coords_:
+                    if isinstance(c, (int, float)):
+                        return [coords_]
+                    if c and isinstance(c[0], (int, float)):
+                        vals.append(c)
+                    else:
+                        vals.extend(_walk(c))
+                return vals
+
+            pts = _walk(coords) if coords else []
+            for px in pts:
+                if len(px) < 2:
+                    continue
+                d = _haversine_mi(lat, lon, px[1], px[0])
+                if best is None or d < best:
+                    best = d
+                    best_props = f.get("properties") or {}
+            if t == "Point" and len(coords) == 2:
+                d = _haversine_mi(lat, lon, coords[1], coords[0])
+                if best is None or d < best:
+                    best = d
+                    best_props = f.get("properties") or {}
+        out["results"].append({
+            "layer": key,
+            "label": label,
+            "distance_mi": round(best, 2) if best is not None else None,
+            "properties": best_props,
+        })
+    return out
 
 
 def _get_db_path():

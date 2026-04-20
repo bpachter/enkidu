@@ -249,7 +249,59 @@
   cursor: pointer;
 }
 .map-toolbar button:hover { background: var(--cyan-glow); }
+.map-toolbar button.active { background: var(--cyan-glow); color: #fff; }
 .bbox-readout { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+
+/* State selector */
+.state-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.state-select {
+  background: #0e1218;
+  color: var(--cyan);
+  border: 1px solid var(--cyan-dim);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 6px;
+  letter-spacing: 0.1em;
+}
+.state-hint { font-size: 9px; color: #6a7484; letter-spacing: 0.05em; }
+
+/* Parcel popup */
+.parcel-popup {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 6;
+  width: 320px;
+  background: rgba(8, 11, 16, 0.94);
+  border: 1px solid var(--cyan-dim);
+  color: #d8dee8;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+.parcel-popup-head {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid var(--cyan-dim);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  color: var(--cyan);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+.parcel-popup-body { display: flex; flex-direction: column; gap: 4px; }
+.parcel-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 11px;
+}
+.parcel-row > span:first-child { color: #6a7484; }
+.parcel-section {
+  margin-top: 8px; padding-top: 6px;
+  border-top: 1px solid #1d2530;
+  color: var(--cyan);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
 
 .site-detail {
   position: absolute;

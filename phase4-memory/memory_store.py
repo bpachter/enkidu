@@ -24,8 +24,9 @@ import os
 import sqlite3
 import hashlib
 import requests
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional
+from typing import Iterator, Optional
 
 import chromadb
 from chromadb.config import Settings
@@ -61,30 +62,35 @@ def _embed(text: str) -> list[float]:
 # SQLite — structured log
 # ---------------------------------------------------------------------------
 
-def _get_db() -> sqlite3.Connection:
+@contextmanager
+def _get_db() -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(_DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS exchanges (
-            id            TEXT PRIMARY KEY,
-            timestamp     TEXT NOT NULL,
-            user_msg      TEXT NOT NULL,
-            asst_msg      TEXT NOT NULL,
-            rating        INTEGER,
-            user_feedback TEXT,
-            auto_score    TEXT
-        )
-    """)
-    # Migrate tables created before rating columns existed
-    existing = {r[1] for r in conn.execute("PRAGMA table_info(exchanges)").fetchall()}
-    for col, defn in [
-        ("rating", "INTEGER"),
-        ("user_feedback", "TEXT"),
-        ("auto_score", "TEXT"),
-    ]:
-        if col not in existing:
-            conn.execute(f"ALTER TABLE exchanges ADD COLUMN {col} {defn}")
-    conn.commit()
-    return conn
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS exchanges (
+                id            TEXT PRIMARY KEY,
+                timestamp     TEXT NOT NULL,
+                user_msg      TEXT NOT NULL,
+                asst_msg      TEXT NOT NULL,
+                rating        INTEGER,
+                user_feedback TEXT,
+                auto_score    TEXT
+            )
+        """)
+        # Migrate tables created before rating columns existed
+        existing = {r[1] for r in conn.execute("PRAGMA table_info(exchanges)").fetchall()}
+        for col, defn in [
+            ("rating", "INTEGER"),
+            ("user_feedback", "TEXT"),
+            ("auto_score", "TEXT"),
+        ]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE exchanges ADD COLUMN {col} {defn}")
+        conn.commit()
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _exchange_id(user_msg: str, timestamp: str) -> str:

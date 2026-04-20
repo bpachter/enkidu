@@ -7,17 +7,79 @@ import {
   fetchSitingSample,
   fetchSitingLiveLayers,
   fetchSitingProxyGeoJSON,
+  fetchSitingStates,
+  fetchSitingMoratoriums,
+  fetchParcelDetail,
   scoreSites,
   type Archetype,
   type LiveLayer,
   type SiteResultDTO,
   type SitingFactorsResponse,
+  type StateOption,
+  type MoratoriumCounty,
+  type ParcelDetail,
 } from '../api'
 import './SitingPanel.css'
 
-// Free MapLibre style — CARTO dark matter (no API key)
-const STYLE_URL =
+// Free MapLibre styles — no API key required
+const STYLE_DARK =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+
+// ESRI World Imagery raster tiles — used for the satellite toggle
+const STYLE_SATELLITE: maplibregl.StyleSpecification = {
+  version: 8,
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    'esri-imagery': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution:
+        'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN',
+    },
+    'esri-labels': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+    },
+  },
+  layers: [
+    { id: 'imagery', type: 'raster', source: 'esri-imagery' },
+    { id: 'labels', type: 'raster', source: 'esri-labels', paint: { 'raster-opacity': 0.8 } },
+  ],
+}
+
+// Voltage → color ramp (kV). Used as a data-driven MapLibre expression for
+// the transmission lines layers.
+const VOLTAGE_COLOR_EXPR: maplibregl.DataDrivenPropertyValueSpecification<string> = [
+  'interpolate',
+  ['linear'],
+  ['to-number', ['get', 'VOLTAGE'], 0],
+  -10, '#5a6470',     // unknown / NULL coded as -1
+  0,   '#5a6470',
+  69,  '#ffeb3b',     // distribution
+  115, '#ffc107',
+  138, '#ff9800',
+  230, '#ff5722',
+  345, '#e91e63',
+  500, '#9c27b0',
+  765, '#3f51b5',
+] as unknown as maplibregl.DataDrivenPropertyValueSpecification<string>
+
+const VOLTAGE_WIDTH_EXPR: maplibregl.DataDrivenPropertyValueSpecification<number> = [
+  'interpolate',
+  ['linear'],
+  ['to-number', ['get', 'VOLTAGE'], 0],
+  0,   0.6,
+  138, 1.1,
+  345, 1.8,
+  500, 2.4,
+  765, 3.0,
+] as unknown as maplibregl.DataDrivenPropertyValueSpecification<number>
 
 function colorForScore(score: number, killed: boolean): string {
   if (killed) return '#3a1018'
@@ -90,6 +152,14 @@ function mergeCoordsIntoResults(results: SiteResultDTO[], inputs: SiteInput[]): 
 export default function SitingPanel() {
   const mapDivRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MLMap | null>(null)
+  // Tracks per-overlay event-listener fns so we can remove them when the
+  // overlay is toggled off (otherwise toggling repeatedly leaks N listeners
+  // and a single click would fire N popups).
+  const overlayHandlersRef = useRef<Map<string, Array<{
+    type: 'click' | 'mouseenter' | 'mouseleave'
+    layerId: string
+    fn: (e: any) => void
+  }>>>(new Map())
   const [mapReady, setMapReady] = useState(false)
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null)
 
@@ -108,6 +178,26 @@ export default function SitingPanel() {
   const [layerStatus, setLayerStatus] = useState<Record<string, 'idle' | 'loading' | 'ok' | 'missing' | 'error'>>({})
   const [error, setError] = useState<string | null>(null)
 
+  // ── new: state selector, satellite toggle, moratoriums, parcel popup ──
+  const [stateOptions, setStateOptions] = useState<StateOption[]>([])
+  const [activeState, setActiveState] = useState<string>('NC')
+  const [basemap, setBasemap] = useState<'dark' | 'satellite'>('dark')
+  const [moratoriums, setMoratoriums] = useState<MoratoriumCounty[]>([])
+  const moratoriumKeys = useMemo(() => {
+    // Build {STATE_NAME|NAME → status} keys for fast lookup in MapLibre filter
+    const keys: string[] = []
+    for (const c of moratoriums) keys.push(`${c.state}|${c.county}`)
+    return keys
+  }, [moratoriums])
+
+  const [parcelPopup, setParcelPopup] = useState<{
+    lat: number
+    lon: number
+    props: Record<string, unknown>
+    detail?: ParcelDetail
+    loading?: boolean
+  } | null>(null)
+
   // ── init: catalog + layer list + sample sites ─────────────────────────
   const loadCatalog = useCallback(() => {
     setError(null)
@@ -120,6 +210,8 @@ export default function SitingPanel() {
         return next
       })
     }).catch(e => setError(String(e)))
+    fetchSitingStates().then(r => setStateOptions(r.states)).catch(() => { /* non-fatal */ })
+    fetchSitingMoratoriums().then(r => setMoratoriums(r.counties)).catch(() => { /* non-fatal */ })
   }, [])
 
   useEffect(() => {
@@ -163,7 +255,7 @@ export default function SitingPanel() {
     if (!mapDivRef.current || mapRef.current) return
     const map = new maplibregl.Map({
       container: mapDivRef.current,
-      style: STYLE_URL,
+      style: STYLE_DARK,
       // Center on North Carolina (initial scope per user)
       center: [-79.2, 35.5],
       zoom: 6.2,
@@ -273,6 +365,16 @@ export default function SitingPanel() {
     const SRC = `ovl-${key}-src`
     const LYR = `ovl-${key}-lyr`
     const LYR_FILL = `ovl-${key}-fill`
+    const LYR_MORATORIUM = `ovl-${key}-moratorium`
+    // Remove tracked event listeners first (must come before removeLayer)
+    const handlers = overlayHandlersRef.current.get(key)
+    if (handlers) {
+      for (const h of handlers) {
+        try { map.off(h.type, h.layerId, h.fn) } catch { /* ignore */ }
+      }
+      overlayHandlersRef.current.delete(key)
+    }
+    if (map.getLayer(LYR_MORATORIUM)) map.removeLayer(LYR_MORATORIUM)
     if (map.getLayer(LYR)) map.removeLayer(LYR)
     if (map.getLayer(LYR_FILL)) map.removeLayer(LYR_FILL)
     if (map.getSource(SRC)) map.removeSource(SRC)
@@ -292,7 +394,13 @@ export default function SitingPanel() {
       return
     }
     setLayerStatus(s => ({ ...s, [key]: 'loading' }))
-    const data = await fetchSitingProxyGeoJSON(key, bbox, 4000)
+    // Send the active state filter only to layers backed by HIFLD power data
+    const stateFilter = ['transmission', 'transmission_duke', 'power_plants', 'power_plants_duke'].includes(key)
+      ? activeState
+      : null
+    // Larger limit for line layers so transmission renders contiguously
+    const limit = lyr.geom === 'line' ? 12000 : 6000
+    const data = await fetchSitingProxyGeoJSON(key, bbox, limit, stateFilter)
     if ('error' in data) {
       setLayerStatus(s => ({ ...s, [key]: 'error' }))
       return
@@ -300,15 +408,21 @@ export default function SitingPanel() {
     const SRC = `ovl-${key}-src`
     const LYR = `ovl-${key}-lyr`
     const LYR_FILL = `ovl-${key}-fill`
+    const LYR_MORATORIUM = `ovl-${key}-moratorium`
     if (map.getSource(SRC)) {
       ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
     } else {
       map.addSource(SRC, { type: 'geojson', data: data as any })
       if (lyr.geom === 'line') {
+        const isVoltage = lyr.style === 'voltage' || key === 'transmission' || key === 'transmission_duke'
         map.addLayer({
           id: LYR, type: 'line', source: SRC,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': lyr.color, 'line-width': 1.2, 'line-opacity': 0.9 },
+          paint: {
+            'line-color': isVoltage ? VOLTAGE_COLOR_EXPR : lyr.color,
+            'line-width': isVoltage ? VOLTAGE_WIDTH_EXPR : 1.2,
+            'line-opacity': 0.92,
+          },
         }, 'sites-halo')
       } else if (lyr.geom === 'point') {
         map.addLayer({
@@ -327,15 +441,63 @@ export default function SitingPanel() {
           id: LYR_FILL, type: 'fill', source: SRC,
           paint: { 'fill-color': lyr.color, 'fill-opacity': 0.10 },
         }, 'sites-halo')
+        // Light-red highlight for counties with documented opposition
+        if (key === 'county_subdivisions' && moratoriumKeys.length) {
+          const filterMatches: any[] = ['any']
+          for (const c of moratoriums) {
+            filterMatches.push([
+              'all',
+              ['==', ['get', 'STATE_NAME'], c.state],
+              ['==', ['get', 'NAME'], c.county],
+            ])
+          }
+          map.addLayer({
+            id: LYR_MORATORIUM, type: 'fill', source: SRC,
+            filter: filterMatches as any,
+            paint: { 'fill-color': '#ff6b6b', 'fill-opacity': 0.32 },
+          }, 'sites-halo')
+        }
         map.addLayer({
           id: LYR, type: 'line', source: SRC,
           paint: { 'line-color': lyr.color, 'line-width': 0.9, 'line-opacity': 0.85 },
         }, 'sites-halo')
+        // Click → parcel popup with proximity stats
+        if (key === 'nc_parcels' || key === 'nc_parcels_pts') {
+          const onClick = (e: any) => {
+            const f = e.features?.[0]
+            if (!f) return
+            setParcelPopup({
+              lat: e.lngLat.lat,
+              lon: e.lngLat.lng,
+              props: f.properties as Record<string, unknown>,
+              loading: true,
+            })
+            fetchParcelDetail(e.lngLat.lat, e.lngLat.lng).then(d => {
+              if ('error' in d) {
+                setParcelPopup(p => p && { ...p, loading: false })
+                return
+              }
+              setParcelPopup(p => p && { ...p, detail: d, loading: false })
+            })
+          }
+          const onEnter = () => { map.getCanvas().style.cursor = 'pointer' }
+          const onLeave = () => { map.getCanvas().style.cursor = '' }
+          map.on('click', LYR, onClick)
+          map.on('mouseenter', LYR, onEnter)
+          map.on('mouseleave', LYR, onLeave)
+          overlayHandlersRef.current.set(key, [
+            { type: 'click', layerId: LYR, fn: onClick },
+            { type: 'mouseenter', layerId: LYR, fn: onEnter },
+            { type: 'mouseleave', layerId: LYR, fn: onLeave },
+          ])
+        }
       }
     }
     setLayerStatus(s => ({ ...s, [key]: 'ok' }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bbox, zoom, layersByKey])
+  }, [bbox, zoom, layersByKey, activeState, moratoriumKeys])
+
+  // ── update removeOverlay to also drop the moratorium layer ────────────
 
   // toggle handler
   function toggleLayer(key: string) {
@@ -355,6 +517,45 @@ export default function SitingPanel() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bbox?.[0], bbox?.[1], bbox?.[2], bbox?.[3], mapReady])
+
+  // ── fly to selected state ─────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const s = stateOptions.find(o => o.code === activeState)
+    if (!s) return
+    map.fitBounds(
+      [[s.bbox[0], s.bbox[1]], [s.bbox[2], s.bbox[3]]] as LngLatBoundsLike,
+      { padding: 60, duration: 800 },
+    )
+    // Force enabled overlays to re-fetch with new state filter
+    setTimeout(() => {
+      for (const [key, on] of Object.entries(enabledLayers)) {
+        if (on) reloadOverlay(key)
+      }
+    }, 900)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeState, stateOptions, mapReady])
+
+  // ── switch basemap (dark ↔ satellite) ─────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const target = basemap === 'satellite' ? STYLE_SATELLITE : STYLE_DARK
+    map.setStyle(target as any)
+    map.once('styledata', () => {
+      // The site source/layers and overlays were dropped with the old style.
+      // styledata fires after the new style is fully loaded, so we can re-add
+      // overlays directly without a setTimeout race.
+      // Drop tracked listener refs — the layers they pointed to no longer exist.
+      overlayHandlersRef.current.clear()
+      setSites(s => [...s])
+      for (const [key, on] of Object.entries(enabledLayers)) {
+        if (on) reloadOverlay(key)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basemap])
 
   // ── re-score on archetype / weight changes ────────────────────────────
   async function rescoreAll() {
@@ -438,6 +639,35 @@ export default function SitingPanel() {
                 onClick={() => setArchetype(a)}
               >{a.toUpperCase()}</button>
             ))}
+          </div>
+        </section>
+
+        <section className="siting-block">
+          <div className="siting-block-head">STATE</div>
+          <div className="state-row">
+            <select
+              className="state-select"
+              value={activeState}
+              onChange={(e) => setActiveState(e.target.value)}
+            >
+              {stateOptions.length === 0 ? (
+                <option value="NC">NC</option>
+              ) : (
+                <>
+                  <optgroup label="Duke territory">
+                    {stateOptions.filter(s => s.duke).map(s => (
+                      <option key={s.code} value={s.code}>{s.code}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Other">
+                    {stateOptions.filter(s => !s.duke).map(s => (
+                      <option key={s.code} value={s.code}>{s.code}</option>
+                    ))}
+                  </optgroup>
+                </>
+              )}
+            </select>
+            <span className="state-hint">filters power layers + flies map</span>
           </div>
         </section>
 
@@ -528,10 +758,61 @@ export default function SitingPanel() {
         <div ref={mapDivRef} className="siting-map" />
         <div className="map-toolbar">
           <button onClick={fitToSites}>FIT</button>
+          <button
+            className={basemap === 'satellite' ? 'active' : ''}
+            onClick={() => setBasemap(b => b === 'dark' ? 'satellite' : 'dark')}
+          >{basemap === 'satellite' ? 'DARK' : 'SAT'}</button>
           <span className="bbox-readout">
             {bbox && `${bbox[1].toFixed(2)}°N ${bbox[0].toFixed(2)}°E → ${bbox[3].toFixed(2)}°N ${bbox[2].toFixed(2)}°E`}
           </span>
         </div>
+        {parcelPopup && (
+          <div className="parcel-popup">
+            <div className="parcel-popup-head">
+              <span>PARCEL</span>
+              <button className="link-btn" onClick={() => setParcelPopup(null)}>×</button>
+            </div>
+            <div className="parcel-popup-body">
+              <div className="parcel-row">
+                <span>owner</span>
+                <span>{String(parcelPopup.props.ownname ?? parcelPopup.props.OWNNAME ?? '—')}</span>
+              </div>
+              <div className="parcel-row">
+                <span>parcel #</span>
+                <span>{String(parcelPopup.props.parno ?? parcelPopup.props.PARNO ?? '—')}</span>
+              </div>
+              {(() => {
+                const p = parcelPopup.props as Record<string, unknown>
+                const acres = p.deedacres ?? p.DEEDACRES ?? p.calc_acres ?? p.CALC_ACRES ?? p.acres ?? p.ACRES
+                return (
+                  <div className="parcel-row">
+                    <span>acreage</span>
+                    <span>{acres == null ? '—' : Number(acres).toFixed(2)}</span>
+                  </div>
+                )
+              })()}
+              <div className="parcel-row">
+                <span>improvement $</span>
+                <span>{(() => {
+                  const v = parcelPopup.props.improvval ?? parcelPopup.props.IMPROVVAL
+                  return v == null ? '—' : `$${Number(v).toLocaleString()}`
+                })()}</span>
+              </div>
+              <div className="parcel-row">
+                <span>location</span>
+                <span>{parcelPopup.lat.toFixed(4)}°, {parcelPopup.lon.toFixed(4)}°</span>
+              </div>
+              <div className="parcel-section">PROXIMITY</div>
+              {parcelPopup.loading && <div className="parcel-row"><span>computing…</span></div>}
+              {parcelPopup.detail?.results.map(r => (
+                <div className="parcel-row" key={r.layer}>
+                  <span>{r.label}</span>
+                  <span>{r.distance_mi == null ? '— (none in 5 mi)' : `${r.distance_mi} mi`}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {selected && (
           <div className="site-detail">
             <div className="detail-head">

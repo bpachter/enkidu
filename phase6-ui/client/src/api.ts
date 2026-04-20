@@ -14,20 +14,19 @@ async function fetchJsonWithRetry<T>(
   init?: RequestInit,
   attempts = 3,
 ): Promise<T> {
-  let lastErr: unknown
   for (let i = 0; i < attempts; i++) {
     try {
       const r = await fetch(url, init)
       return await parseJsonOrThrow<T>(r, endpointLabel)
     } catch (e) {
-      lastErr = e
       if (!isHtmlInsteadOfJsonError(e) || i === attempts - 1) {
         throw e
       }
       await delay(120 * (i + 1))
     }
   }
-  throw lastErr
+  // Unreachable: loop above always returns or throws on the final attempt.
+  throw new Error(`${endpointLabel}: exhausted ${attempts} attempts`)
 }
 
 async function parseJsonOrThrow<T>(r: Response, endpointLabel: string): Promise<T> {
@@ -98,15 +97,21 @@ export async function fetchMemory() {
 }
 
 export async function rateMemory(id: string, rating: number | null) {
-  await fetch(`${BASE}/api/memory/${id}/rate`, {
+  const r = await fetch(`${BASE}/api/memory/${id}/rate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rating }),
   })
+  if (!r.ok) {
+    throw new Error(`rateMemory ${r.status}: ${(await r.text()).slice(0, 200)}`)
+  }
 }
 
 export async function deleteMemory(id: string) {
-  await fetch(`${BASE}/api/memory/${id}`, { method: 'DELETE' })
+  const r = await fetch(`${BASE}/api/memory/${id}`, { method: 'DELETE' })
+  if (!r.ok) {
+    throw new Error(`deleteMemory ${r.status}: ${(await r.text()).slice(0, 200)}`)
+  }
 }
 
 export async function fetchDocs() {
@@ -302,6 +307,7 @@ export interface LiveLayer {
   group: string
   geom: 'point' | 'line' | 'polygon'
   color: string
+  style?: string | null
   min_zoom: number
   source: string
 }
@@ -323,10 +329,13 @@ export interface LiveLayerGeoJSON {
     group: string
     geom: 'point' | 'line' | 'polygon'
     color: string
+    style?: string | null
     min_zoom: number
     returned: number
     limit: number
     bbox: string | null
+    state?: string | null
+    truncated?: boolean
     live: true
   }
 }
@@ -334,11 +343,13 @@ export interface LiveLayerGeoJSON {
 export async function fetchSitingProxyGeoJSON(
   layerKey: string,
   bbox: [number, number, number, number],
-  limit = 4000,
+  limit = 8000,
+  state?: string | null,
 ): Promise<LiveLayerGeoJSON | { error: string }> {
   const params = new URLSearchParams()
   params.set('bbox', bbox.join(','))
   params.set('limit', String(limit))
+  if (state) params.set('state', state)
   const url = `${BASE}/api/siting/proxy/${layerKey}?${params.toString()}`
   try {
     const r = await fetch(url)
@@ -348,6 +359,72 @@ export async function fetchSitingProxyGeoJSON(
       return { error: j.error ?? `HTTP ${r.status}` }
     }
     return await parseJsonOrThrow<LiveLayerGeoJSON>(r, `siting/proxy/${layerKey}`)
+  } catch (e) {
+    return { error: String(e) }
+  }
+}
+
+// ── State selector + supporting endpoints ────────────────────────────────
+
+export interface StateOption {
+  code: string
+  bbox: [number, number, number, number]
+  duke: boolean
+}
+
+export async function fetchSitingStates(): Promise<{ states: StateOption[]; duke_states: string[] }> {
+  return fetchJsonWithRetry<{ states: StateOption[]; duke_states: string[] }>(
+    `${BASE}/api/siting/states`,
+    'siting/states',
+  )
+}
+
+export interface MoratoriumCounty {
+  state: string
+  county: string
+  status: string
+  url: string
+}
+
+export async function fetchSitingMoratoriums(): Promise<{ counties: MoratoriumCounty[] }> {
+  return fetchJsonWithRetry<{ counties: MoratoriumCounty[] }>(
+    `${BASE}/api/siting/moratoriums`,
+    'siting/moratoriums',
+  )
+}
+
+export interface ParcelDetailResult {
+  layer: string
+  label: string
+  distance_mi: number | null
+  properties: Record<string, unknown>
+}
+
+export interface ParcelDetail {
+  lat: number
+  lon: number
+  radius_mi: number
+  results: ParcelDetailResult[]
+}
+
+export async function fetchParcelDetail(
+  lat: number,
+  lon: number,
+  radius_mi = 5,
+): Promise<ParcelDetail | { error: string }> {
+  const params = new URLSearchParams()
+  params.set('lat', String(lat))
+  params.set('lon', String(lon))
+  params.set('radius_mi', String(radius_mi))
+  const url = `${BASE}/api/siting/parcel_detail?${params.toString()}`
+  try {
+    const r = await fetch(url)
+    if (!r.ok) {
+      let j: { error?: string } = {}
+      try { j = await r.json() } catch { /* ignore */ }
+      return { error: j.error ?? `HTTP ${r.status}` }
+    }
+    return await parseJsonOrThrow<ParcelDetail>(r, 'siting/parcel_detail')
   } catch (e) {
     return { error: String(e) }
   }
