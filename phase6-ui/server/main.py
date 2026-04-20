@@ -254,6 +254,25 @@ app.add_middleware(
 # REST endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+def root():
+    """Serve SPA when available; otherwise return a useful service landing payload."""
+    index = _CLIENT_DIST / "index.html"
+    if index.exists():
+        return FileResponse(str(index))
+
+    ui_url = os.environ.get("ENKIDU_UI_URL", "").strip()
+    return JSONResponse(
+        {
+            "ok": True,
+            "service": "Enkidu API",
+            "ui": ui_url or "not configured",
+            "health": "/api/health",
+            "docs": "/docs",
+            "note": "Frontend build not found on this backend instance.",
+        }
+    )
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "version": "7.0.0"}

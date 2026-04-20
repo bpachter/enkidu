@@ -3,7 +3,9 @@ name: Deploy Enkidu Client
 on:
   push:
     branches: [main]
-    paths: ['phase6-ui/client/**']
+    paths:
+      - 'phase6-ui/client/**'
+      - '.github/workflows/deploy-client.yml'
   workflow_dispatch:
 
 jobs:
@@ -29,9 +31,25 @@ jobs:
         working-directory: phase6-ui/client
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          # Override to '/' when publishing to a root user page (bpachter.github.io)
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/enkidu/' }}
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy to User GitHub Pages Repo
+        if: ${{ secrets.GH_PAGES_PAT != '' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.GH_PAGES_PAT }}
+          external_repository: bpachter/bpachter.github.io
+          publish_branch: main
+          publish_dir: ./phase6-ui/client/dist
+          force_orphan: true
+          enable_jekyll: false
+
+      - name: Deploy to Repo GitHub Pages
+        if: ${{ secrets.GH_PAGES_PAT == '' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./phase6-ui/client/dist
+          force_orphan: true
+          enable_jekyll: false
