@@ -61,6 +61,20 @@ def health():
     return {"ok": True, "gpu_url_configured": bool(GPU_URL)}
 
 
+@app.get("/api/probe")
+async def probe():
+    """Diagnostic: attempt a real connection to GPU_URL and return error details."""
+    if not GPU_URL:
+        return {"gpu_url": None, "error": "GPU_URL not set"}
+    import traceback
+    try:
+        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+            r = await client.get(f"{GPU_URL}/api/health")
+            return {"gpu_url": GPU_URL, "status": r.status_code, "body": r.text[:200]}
+    except Exception as e:
+        return {"gpu_url": GPU_URL, "error_type": type(e).__name__, "error": str(e), "trace": traceback.format_exc()[-500:]}
+
+
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_http(request: Request, path: str):
     if not GPU_URL:
