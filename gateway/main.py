@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-GPU_URL = os.environ.get("GPU_URL", "").rstrip("/")
+GPU_URL = os.environ.get("GPU_URL", "").strip().rstrip("/")
 ENKIDU_UI_URL = os.environ.get("ENKIDU_UI_URL", "").strip()
 
 logging.basicConfig(level=logging.INFO)
