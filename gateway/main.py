@@ -16,8 +16,10 @@ import httpx
 import websockets
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 
 GPU_URL = os.environ.get("GPU_URL", "").rstrip("/")
+ENKIDU_UI_URL = os.environ.get("ENKIDU_UI_URL", "").strip()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("enkidu.gateway")
@@ -37,6 +39,21 @@ app.add_middleware(
 
 _OFFLINE_BODY = b'{"error":"Home GPU is offline or tunnel is down","online":false}'
 _NO_CONFIG_BODY = b'{"error":"GPU_URL not configured","online":false}'
+
+
+@app.get("/")
+def root():
+    """Open a browser-friendly landing target for the gateway base URL."""
+    if ENKIDU_UI_URL:
+        return RedirectResponse(url=ENKIDU_UI_URL, status_code=307)
+    return JSONResponse(
+        {
+            "ok": True,
+            "service": "Enkidu Gateway",
+            "health": "/api/health",
+            "note": "Set ENKIDU_UI_URL to redirect browser traffic to your UI.",
+        }
+    )
 
 
 @app.get("/api/health")
