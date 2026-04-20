@@ -74,7 +74,7 @@ async def proxy_http(request: Request, path: str):
     }
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
             resp = await client.request(
                 method=request.method,
                 url=url,
@@ -86,8 +86,8 @@ async def proxy_http(request: Request, path: str):
             status_code=resp.status_code,
             media_type=resp.headers.get("content-type"),
         )
-    except httpx.HTTPError as e:
-        logger.warning("GPU unreachable: %s", e)
+    except Exception as e:
+        logger.warning("GPU proxy error (%s): %s", type(e).__name__, e)
         return Response(content=_OFFLINE_BODY, status_code=503, media_type="application/json")
 
 
@@ -134,7 +134,7 @@ async def proxy_ws(websocket: WebSocket, path: str):
 
             await asyncio.gather(client_to_upstream(), upstream_to_client())
 
-    except (OSError, websockets.InvalidURI, websockets.WebSocketException) as e:
+    except Exception as e:
         logger.warning("WS upstream unreachable (%s): %s", path, e)
         try:
             await websocket.close(code=1011, reason="Home GPU offline")
