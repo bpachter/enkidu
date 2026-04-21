@@ -5,7 +5,6 @@ import GpuHistoryPanel  from './components/GpuHistoryPanel'
 import ModelParamsPanel from './components/ModelParamsPanel'
 import MarketPanel      from './components/MarketPanel'
 import MemoryPanel      from './components/MemoryPanel'
-import HistoryPanel     from './components/HistoryPanel'
 import DocsPanel        from './components/DocsPanel'
 import DemoPanel        from './components/DemoPanel'
 import { useStore }     from './store'
@@ -70,21 +69,18 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Middle column: Chat (with integrated voice) + History ── */}
+      {/* ── Middle column: Chat + Memory Bank ── */}
       <div className="col-chat">
         <ChatPanel />
         <div style={{ flexShrink: 0, height: 180, borderTop: '1px solid var(--border)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <HistoryPanel />
+          <MemoryPanel />
         </div>
       </div>
 
-      {/* ── Right column: Market + Memory ── */}
+      {/* ── Right column: Market Intelligence ── */}
       <div className="col-right">
-        <div style={{ flex: 3, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           <MarketPanel />
-        </div>
-        <div style={{ flex: 2, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--border)', overflow: 'hidden' }}>
-          <MemoryPanel />
         </div>
       </div>
     </div>
