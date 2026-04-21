@@ -31,22 +31,9 @@ jobs:
         working-directory: phase6-ui/client
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
-          # Override to '/' when publishing to a root user page (bpachter.github.io)
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/enkidu/' }}
+          VITE_BASE_PATH: /enkidu/
 
-      - name: Deploy to User GitHub Pages Repo
-        if: ${{ secrets.GH_PAGES_PAT != '' }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          personal_token: ${{ secrets.GH_PAGES_PAT }}
-          external_repository: bpachter/bpachter.github.io
-          publish_branch: main
-          publish_dir: ./phase6-ui/client/dist
-          force_orphan: true
-          enable_jekyll: false
-
-      - name: Deploy to Repo GitHub Pages
-        if: ${{ secrets.GH_PAGES_PAT == '' }}
+      - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
