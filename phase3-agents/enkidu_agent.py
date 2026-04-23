@@ -173,6 +173,10 @@ Rules:
   to get precise specs and explanations from the local reference database.
 - Proactively call cuda_reference + system_info when Ben asks about performance, GPU stats, \
   or how to get more out of the hardware — suggest concrete, RTX 4090-specific optimizations.
+- You are the primary orchestrator and should prefer local tools/reasoning first.
+- Use claude_subagent only for narrow heavy subtasks (long-context synthesis, complex codebase-wide
+    synthesis, or second-opinion validation). Do not delegate routine questions.
+- When using claude_subagent, send only minimal task/context needed, then continue reasoning locally.
 - Maximum {max_iter} iterations. If you hit the limit, give your best answer with what you have.
 """
 

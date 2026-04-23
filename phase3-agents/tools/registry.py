@@ -14,6 +14,8 @@ to build the tool section of the system prompt.
 import os
 import sys
 import time
+import json
+import re
 import logging
 import subprocess
 import importlib.util
@@ -24,6 +26,105 @@ _telem_logger = logging.getLogger("enkidu.telemetry")
 # In-memory telemetry ring buffer (last 200 tool call records)
 _TELEMETRY: list[dict] = []
 _TELEM_MAX = 200
+
+_CLAUDE_SUBAGENT_CALL_TIMES: list[float] = []
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimator for routing and delegation policy."""
+    return max(1, len(text) // 4)
+
+
+def _claude_subagent_allowlist() -> list[str]:
+    raw = os.environ.get(
+        "ENKIDU_CLAUDE_SUBAGENT_ALLOWLIST",
+        "long context,document analysis,multi-file,codebase synthesis,second opinion,validation,refactor",
+    )
+    return [p.strip().lower() for p in raw.split(",") if p.strip()]
+
+
+def _claude_subagent_threshold() -> int:
+    raw = os.environ.get("ENKIDU_CLAUDE_SUBAGENT_TOKEN_THRESHOLD", "9000")
+    try:
+        return max(1000, int(raw))
+    except Exception:
+        return 9000
+
+
+def _claude_subagent_rate_window_sec() -> int:
+    raw = os.environ.get("ENKIDU_CLAUDE_SUBAGENT_WINDOW_SEC", "60")
+    try:
+        return max(10, int(raw))
+    except Exception:
+        return 60
+
+
+def _claude_subagent_rate_max_calls() -> int:
+    raw = os.environ.get("ENKIDU_CLAUDE_SUBAGENT_MAX_CALLS", "6")
+    try:
+        return max(1, int(raw))
+    except Exception:
+        return 6
+
+
+def _claude_subagent_audit_path() -> str:
+    default_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "claude_subagent_audit.jsonl")
+    )
+    return os.environ.get("ENKIDU_CLAUDE_SUBAGENT_AUDIT_LOG", default_path)
+
+
+def _audit_claude_subagent(event: dict) -> None:
+    """Write one JSON line per delegation decision/result for observability."""
+    try:
+        path = _claude_subagent_audit_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=True) + "\n")
+    except Exception:
+        # Never break agent execution on logging failures
+        pass
+
+
+def _claude_subagent_gate(task: str, context: str) -> tuple[bool, str, dict]:
+    """Deterministic gate to keep Gemma local as primary orchestrator."""
+    lower_task = (task or "").lower()
+    tokens_task = _estimate_tokens(task or "")
+    tokens_ctx = _estimate_tokens(context or "")
+    tokens_total = tokens_task + tokens_ctx
+
+    metadata = {
+        "task_tokens": tokens_task,
+        "context_tokens": tokens_ctx,
+        "total_tokens": tokens_total,
+        "token_threshold": _claude_subagent_threshold(),
+    }
+
+    force = os.environ.get("ENKIDU_CLAUDE_SUBAGENT_FORCE", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    if force:
+        return True, "forced_by_env", metadata
+
+    # Rate limit protection
+    now = time.time()
+    window = _claude_subagent_rate_window_sec()
+    max_calls = _claude_subagent_rate_max_calls()
+    cutoff = now - window
+    while _CLAUDE_SUBAGENT_CALL_TIMES and _CLAUDE_SUBAGENT_CALL_TIMES[0] < cutoff:
+        _CLAUDE_SUBAGENT_CALL_TIMES.pop(0)
+    if len(_CLAUDE_SUBAGENT_CALL_TIMES) >= max_calls:
+        return False, f"rate_limited_{max_calls}_per_{window}s", metadata
+
+    if tokens_total >= _claude_subagent_threshold():
+        return True, "long_context_threshold", metadata
+
+    allowlist = _claude_subagent_allowlist()
+    for phrase in allowlist:
+        if phrase and re.search(re.escape(phrase), lower_task):
+            return True, f"allowlist_match:{phrase}", metadata
+
+    return False, "below_threshold_and_not_allowlisted", metadata
 
 def _record_telemetry(name: str, latency_ms: float, success: bool, error: str = ""):
     record = {
@@ -490,4 +591,261 @@ register(
         "query": "str — topic to look up, e.g. 'KV cache VRAM usage' or 'warp divergence'"
     },
     fn=_cuda_reference,
+)
+
+# ---------------------------------------------------------------------------
+# Claude subagent (optional specialist delegation)
+# ---------------------------------------------------------------------------
+
+def _claude_subagent(task: str, context: str = "", max_tokens: int = 1200) -> str:
+    """
+    Delegate a narrowly scoped heavy task to Claude while Enkidu remains orchestrator.
+
+    This is intentionally synchronous and stateless: one task in, one result out.
+    """
+    enabled = os.environ.get("ENKIDU_CLAUDE_SUBAGENT_ENABLED", "1").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    if not enabled:
+        _audit_claude_subagent({
+            "ts": time.time(),
+            "tool": "claude_subagent",
+            "allowed": False,
+            "reason": "disabled",
+            "task_head": (task or "")[:240],
+        })
+        return "claude_subagent disabled by ENKIDU_CLAUDE_SUBAGENT_ENABLED"
+
+    allowed, reason, gate_meta = _claude_subagent_gate(task, context)
+    if not allowed:
+        _audit_claude_subagent({
+            "ts": time.time(),
+            "tool": "claude_subagent",
+            "allowed": False,
+            "reason": reason,
+            "task_head": (task or "")[:240],
+            **gate_meta,
+        })
+        return (
+            f"claude_subagent gate blocked delegation ({reason}). "
+            "Continue locally with available tools or narrow the task."
+        )
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        _audit_claude_subagent({
+            "ts": time.time(),
+            "tool": "claude_subagent",
+            "allowed": False,
+            "reason": "missing_api_key",
+            "task_head": (task or "")[:240],
+            **gate_meta,
+        })
+        return "claude_subagent unavailable: ANTHROPIC_API_KEY not set"
+
+    try:
+        from anthropic import Anthropic
+    except Exception as e:
+        _audit_claude_subagent({
+            "ts": time.time(),
+            "tool": "claude_subagent",
+            "allowed": False,
+            "reason": "sdk_import_failed",
+            "error": str(e),
+            "task_head": (task or "")[:240],
+            **gate_meta,
+        })
+        return f"claude_subagent unavailable: anthropic SDK import failed: {e}"
+
+    model = os.environ.get("CLAUDE_SUBAGENT_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+    try:
+        mt = int(max_tokens)
+    except Exception:
+        mt = 1200
+    mt = max(200, min(mt, 4096))
+
+    sys_prompt = (
+        "You are a specialist subagent called by Enkidu. "
+        "Return concise, factual output for the requested task only. "
+        "Do not roleplay as the top-level assistant."
+    )
+    user_prompt = (
+        f"Task:\n{task}\n\n"
+        f"Context (may be partial):\n{context}\n\n"
+        "Output requirements:\n"
+        "- Focus only on the task.\n"
+        "- If evidence is missing, say exactly what is missing.\n"
+        "- Prefer structured headings only when useful."
+    )
+
+    try:
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=mt,
+            system=sys_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        _CLAUDE_SUBAGENT_CALL_TIMES.append(time.time())
+        text = response.content[0].text if response.content else ""
+        out = (text or "").strip() or "claude_subagent returned empty output"
+        _audit_claude_subagent({
+            "ts": time.time(),
+            "tool": "claude_subagent",
+            "allowed": True,
+            "reason": reason,
+            "model": model,
+            "max_tokens": mt,
+            "task_head": (task or "")[:240],
+            "output_chars": len(out),
+            **gate_meta,
+        })
+        return out
+    except Exception as e:
+        _audit_claude_subagent({
+            "ts": time.time(),
+            "tool": "claude_subagent",
+            "allowed": True,
+            "reason": reason,
+            "model": model,
+            "max_tokens": mt,
+            "task_head": (task or "")[:240],
+            "error": str(e),
+            **gate_meta,
+        })
+        return f"claude_subagent error: {e}"
+
+
+register(
+    name="claude_subagent",
+    description=(
+        "Delegate a heavy or long-context subtask to Claude while Enkidu remains the primary "
+        "local orchestrator. Use ONLY when local reasoning is likely insufficient, such as: "
+        "very long documents, dense multi-file synthesis, or high-precision second-opinion tasks. "
+        "Keep delegated tasks narrow and include only necessary context."
+    ),
+    parameters={
+        "task": "str — narrowly scoped task for Claude to perform",
+        "context": "str — optional supporting context excerpt",
+        "max_tokens": "int — optional output budget (200-4096, default 1200)",
+    },
+    fn=_claude_subagent,
+)
+
+
+def _claude_subagent_stats(query: str = "") -> str:
+    """Summarize delegation audit events from the JSONL log."""
+    path = _claude_subagent_audit_path()
+    if not os.path.exists(path):
+        return f"claude_subagent_stats: no audit log found at {path}"
+
+    lower = (query or "").lower()
+    # Default window: 24h. Supports examples like: "last 60m", "last 7d", "all"
+    if "all" in lower:
+        window_seconds = 10 * 365 * 24 * 3600
+    else:
+        window_seconds = 24 * 3600
+        m = re.search(r"(\d+)\s*([smhd])", lower)
+        if m:
+            n = max(1, int(m.group(1)))
+            unit = m.group(2)
+            if unit == "s":
+                window_seconds = n
+            elif unit == "m":
+                window_seconds = n * 60
+            elif unit == "h":
+                window_seconds = n * 3600
+            elif unit == "d":
+                window_seconds = n * 24 * 3600
+
+    now = time.time()
+    cutoff = now - window_seconds
+
+    total = 0
+    allowed = 0
+    blocked = 0
+    errors = 0
+    reasons: dict[str, int] = {}
+    models: dict[str, int] = {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    evt = json.loads(line)
+                except Exception:
+                    continue
+
+                ts = float(evt.get("ts", 0.0) or 0.0)
+                if ts and ts < cutoff:
+                    continue
+
+                total += 1
+                is_allowed = bool(evt.get("allowed", False))
+                if is_allowed:
+                    allowed += 1
+                else:
+                    blocked += 1
+
+                if evt.get("error"):
+                    errors += 1
+
+                reason = str(evt.get("reason", "unknown"))
+                reasons[reason] = reasons.get(reason, 0) + 1
+
+                model = str(evt.get("model", ""))
+                if model:
+                    models[model] = models.get(model, 0) + 1
+    except Exception as e:
+        return f"claude_subagent_stats: failed to read audit log: {e}"
+
+    if total == 0:
+        return (
+            f"claude_subagent_stats: no events in window ({window_seconds}s). "
+            f"Log path: {path}"
+        )
+
+    allowed_pct = 100.0 * allowed / total
+    blocked_pct = 100.0 * blocked / total
+
+    top_reasons = sorted(reasons.items(), key=lambda kv: kv[1], reverse=True)[:6]
+    top_models = sorted(models.items(), key=lambda kv: kv[1], reverse=True)[:3]
+
+    lines = [
+        "Claude subagent delegation stats:",
+        f"  Window: last {window_seconds}s",
+        f"  Log: {path}",
+        f"  Events: {total}",
+        f"  Allowed: {allowed} ({allowed_pct:.1f}%)",
+        f"  Blocked: {blocked} ({blocked_pct:.1f}%)",
+        f"  Errors: {errors}",
+    ]
+
+    if top_reasons:
+        lines.append("  Top reasons:")
+        for reason, count in top_reasons:
+            lines.append(f"    - {reason}: {count}")
+
+    if top_models:
+        lines.append("  Models used:")
+        for model, count in top_models:
+            lines.append(f"    - {model}: {count}")
+
+    return "\n".join(lines)
+
+
+register(
+    name="claude_subagent_stats",
+    description=(
+        "Summarize local audit logs for Claude delegation decisions. "
+        "Use this to tune Gemma-first routing policy and observe allowed/blocked rates. "
+        "Query examples: 'last 60m', 'last 7d', 'all'."
+    ),
+    parameters={
+        "query": "str — optional window selector, e.g. 'last 60m', 'last 24h', or 'all'",
+    },
+    fn=lambda query="": _claude_subagent_stats(query),
 )
