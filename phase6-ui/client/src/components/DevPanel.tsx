@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { X, Play, CheckCircle, XCircle, Clock, FileCode, GitBranch, ChevronRight, ChevronDown, Send } from 'lucide-react'
+import { X, Play, CheckCircle, XCircle, Clock, FileCode, GitBranch, ChevronRight, ChevronDown, Send, Lock, GitCommit, GitPullRequest, RefreshCw } from 'lucide-react'
 import { wsBase, API_BASE } from '../api'
 
 // ---------------------------------------------------------------------------
@@ -42,6 +42,7 @@ interface FileNode {
   name: string
   type: 'file' | 'dir'
   ext?: string
+  sensitive?: boolean
   children?: FileNode[]
 }
 
@@ -117,9 +118,10 @@ function FileTree({ nodes, onSelect }: { nodes: FileNode[]; onSelect: (name: str
           ) : (
             <button
               onClick={() => onSelect(n.name)}
-              className="pl-4 text-slate-300 hover:text-cyan-300 py-0.5 block truncate w-full text-left"
+              className="pl-4 text-slate-300 hover:text-cyan-300 py-0.5 flex items-center gap-1 w-full text-left"
             >
-              {n.name}
+              {n.sensitive && <Lock className="h-2.5 w-2.5 text-amber-500 shrink-0" />}
+              <span className="truncate">{n.name}</span>
             </button>
           )}
         </li>
@@ -191,6 +193,19 @@ export default function DevPanel({ onClose }: Props) {
   // Patch review
   const [reviewingPatch, setReviewingPatch] = useState<FilePatch | null>(null)
 
+  // Password modal (for sensitive files)
+  const [passwordPrompt, setPasswordPrompt] = useState(false)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [pendingFile, setPendingFile] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState('')
+
+  // Git panel
+  const [gitBranch, setGitBranch] = useState('')
+  const [gitStatus, setGitStatus] = useState('')
+  const [commitMsg, setCommitMsg] = useState('')
+  const [gitWorking, setGitWorking] = useState(false)
+  const [gitOutput, setGitOutput] = useState('')
+
   // Log scroll
   const logRef = useRef<HTMLDivElement | null>(null)
 
@@ -212,6 +227,7 @@ export default function DevPanel({ onClose }: Props) {
 
   useEffect(() => { loadTasks() }, [activeProject])
   useEffect(() => { loadFileTree() }, [activeProject])
+  useEffect(() => { loadGitStatus() }, [activeProject])
 
   useEffect(() => {
     if (logRef.current) {
@@ -238,13 +254,80 @@ export default function DevPanel({ onClose }: Props) {
     } catch {}
   }
 
-  async function openFile(rel: string) {
+  async function openFile(rel: string, password?: string) {
     try {
-      const d = await apiGet<{ contents: string; rel_path: string }>(
-        `/api/dev/file?project=${activeProject}&path=${encodeURIComponent(rel)}`
-      )
+      let url = `/api/dev/file?project=${activeProject}&path=${encodeURIComponent(rel)}`
+      if (password) url += `&password=${encodeURIComponent(password)}`
+      const d = await apiGet<{ contents?: string; rel_path?: string; error?: string }>(url)
+      if (d.error === 'password_required') {
+        setPendingFile(rel)
+        setPasswordInput('')
+        setPasswordError('')
+        setPasswordPrompt(true)
+        return
+      }
       if (d.contents !== undefined) setOpenedFile({ rel, contents: d.contents })
     } catch {}
+  }
+
+  async function submitPassword() {
+    if (!pendingFile) return
+    let url = `/api/dev/file?project=${activeProject}&path=${encodeURIComponent(pendingFile)}&password=${encodeURIComponent(passwordInput)}`
+    try {
+      const d = await apiGet<{ contents?: string; error?: string }>(url)
+      if (d.error === 'password_required') {
+        setPasswordError('Incorrect password')
+        return
+      }
+      if (d.contents !== undefined) {
+        setOpenedFile({ rel: pendingFile, contents: d.contents })
+        setPasswordPrompt(false)
+        setPasswordInput('')
+        setPendingFile(null)
+        setPasswordError('')
+      }
+    } catch { setPasswordError('Request failed') }
+  }
+
+  async function loadGitStatus() {
+    try {
+      const d = await apiGet<{ branch?: string; status?: string; error?: string }>(
+        `/api/dev/git/status?project=${activeProject}`
+      )
+      if (!d.error) {
+        setGitBranch(d.branch ?? '')
+        setGitStatus(d.status ?? '')
+      }
+    } catch {}
+  }
+
+  async function gitCommitPush() {
+    if (!commitMsg.trim()) return
+    setGitWorking(true)
+    setGitOutput('')
+    try {
+      const d = await apiPost<{ ok?: boolean; output?: string; error?: string }>(
+        '/api/dev/git/commit-push',
+        { project: activeProject, message: commitMsg.trim(), push: true }
+      )
+      setGitOutput(d.error ? `ERROR: ${d.error}` : (d.output ?? 'Done'))
+      if (!d.error) { setCommitMsg(''); await loadGitStatus() }
+    } catch { setGitOutput('Request failed') }
+    finally { setGitWorking(false) }
+  }
+
+  async function gitPull() {
+    setGitWorking(true)
+    setGitOutput('')
+    try {
+      const d = await apiPost<{ ok?: boolean; output?: string; error?: string }>(
+        '/api/dev/git/pull',
+        { project: activeProject }
+      )
+      setGitOutput(d.error ? `ERROR: ${d.error}` : (d.output ?? 'Already up to date'))
+      if (!d.error) { await loadGitStatus(); await loadFileTree() }
+    } catch { setGitOutput('Request failed') }
+    finally { setGitWorking(false) }
   }
 
   async function createTask() {
@@ -397,11 +480,17 @@ export default function DevPanel({ onClose }: Props) {
       {/* Body: 3-column layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* LEFT: File tree */}
-        <div className="w-48 shrink-0 border-r border-[#1e2d4a] flex flex-col overflow-hidden">
-          <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500 border-b border-[#1e2d4a] flex items-center gap-1">
-            <GitBranch className="h-3 w-3" />
-            Files
+        {/* LEFT: File tree + Git panel */}
+        <div className="w-52 shrink-0 border-r border-[#1e2d4a] flex flex-col overflow-hidden">
+          <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500 border-b border-[#1e2d4a] flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <GitBranch className="h-3 w-3" />
+              {activeProject}
+              {gitBranch && <span className="text-cyan-700 normal-case">:{gitBranch}</span>}
+            </span>
+            <button onClick={loadFileTree} className="text-slate-600 hover:text-slate-400" title="Refresh">
+              <RefreshCw className="h-2.5 w-2.5" />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto py-1 px-1">
             {fileTree.length > 0 ? (
@@ -415,6 +504,46 @@ export default function DevPanel({ onClose }: Props) {
                   ? 'Loading...'
                   : 'Project not on disk'}
               </div>
+            )}
+          </div>
+
+          {/* Git panel */}
+          <div className="border-t border-[#1e2d4a] p-2 shrink-0">
+            <div className="text-[9px] uppercase tracking-widest text-slate-500 mb-1.5 flex items-center gap-1">
+              <GitCommit className="h-3 w-3" /> Git
+              {gitStatus && (
+                <span className="ml-auto text-amber-600 font-mono normal-case">{gitStatus.split('\n').length} changed</span>
+              )}
+            </div>
+            {gitStatus && (
+              <pre className="text-[8.5px] font-mono text-slate-500 mb-1.5 max-h-16 overflow-auto whitespace-pre-wrap">{gitStatus}</pre>
+            )}
+            <input
+              value={commitMsg}
+              onChange={e => setCommitMsg(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && gitCommitPush()}
+              placeholder="Commit message…"
+              className="w-full bg-[#0f1729] border border-[#1e2d4a] rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-cyan-800 mb-1"
+            />
+            <div className="flex gap-1">
+              <button
+                onClick={gitCommitPush}
+                disabled={!commitMsg.trim() || gitWorking}
+                className="flex-1 px-1.5 py-1 rounded bg-cyan-900/40 text-cyan-300 text-[9px] font-semibold hover:bg-cyan-900/60 disabled:opacity-40 border border-cyan-800 flex items-center justify-center gap-1"
+              >
+                <GitCommit className="h-2.5 w-2.5" />
+                {gitWorking ? '…' : 'Commit+Push'}
+              </button>
+              <button
+                onClick={gitPull}
+                disabled={gitWorking}
+                className="px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[9px] font-semibold hover:bg-slate-700 disabled:opacity-40 border border-slate-600 flex items-center gap-1"
+              >
+                <GitPullRequest className="h-2.5 w-2.5" /> Pull
+              </button>
+            </div>
+            {gitOutput && (
+              <pre className="mt-1.5 text-[8.5px] font-mono max-h-14 overflow-auto whitespace-pre-wrap text-slate-400 border border-[#1e2d4a] rounded p-1">{gitOutput}</pre>
             )}
           </div>
         </div>
@@ -568,8 +697,8 @@ export default function DevPanel({ onClose }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: Opened file viewer */}
-        <div className="w-80 shrink-0 border-l border-[#1e2d4a] flex flex-col overflow-hidden">
+        {/* RIGHT: Opened file viewer — equal width to center */}
+        <div className="flex-1 border-l border-[#1e2d4a] flex flex-col overflow-hidden min-w-0">
           <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500 border-b border-[#1e2d4a]">
             {openedFile ? openedFile.rel : 'File viewer'}
           </div>
@@ -586,6 +715,45 @@ export default function DevPanel({ onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Password modal */}
+      {passwordPrompt && (
+        <div className="absolute inset-0 z-60 flex items-center justify-center bg-black/70">
+          <div className="bg-[#0f1729] border border-cyan-800 rounded-lg p-5 w-72 shadow-2xl">
+            <div className="flex items-center gap-2 mb-3">
+              <Lock className="h-4 w-4 text-amber-400" />
+              <span className="text-[12px] font-semibold text-slate-200">Protected file</span>
+            </div>
+            <p className="text-[10.5px] text-slate-400 mb-3 font-mono">{pendingFile}</p>
+            <input
+              type="password"
+              autoFocus
+              value={passwordInput}
+              onChange={e => setPasswordInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submitPassword()}
+              placeholder="Dev password…"
+              className="w-full bg-[#070d1a] border border-[#1e2d4a] rounded px-3 py-1.5 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-700 mb-1"
+            />
+            {passwordError && (
+              <p className="text-[10px] text-red-400 mb-1">{passwordError}</p>
+            )}
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={submitPassword}
+                className="flex-1 px-3 py-1.5 rounded bg-cyan-800 text-cyan-200 text-[10.5px] font-semibold hover:bg-cyan-700"
+              >
+                Unlock
+              </button>
+              <button
+                onClick={() => { setPasswordPrompt(false); setPasswordInput(''); setPendingFile(null); setPasswordError('') }}
+                className="px-3 py-1.5 rounded border border-slate-600 text-slate-400 text-[10.5px] hover:text-slate-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

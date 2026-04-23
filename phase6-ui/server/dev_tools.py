@@ -66,6 +66,31 @@ _TEXT_EXTS = {
 }
 
 # ---------------------------------------------------------------------------
+# Security — sensitive file gating
+# ---------------------------------------------------------------------------
+
+# Password required to view sensitive files in the IDE panel
+_DEV_PASSWORD = "antifragile"
+
+# Hidden dotfiles to show in the file tree (all other dotfiles are hidden)
+_SHOW_HIDDEN = {".env", ".env.example", ".gitignore", ".gitkeep", ".dockerignore"}
+
+# Dotfiles that can be read by name (their suffix is empty, so they bypass _TEXT_EXTS)
+_READABLE_DOTFILES = {".env", ".env.example", ".env.local", ".gitignore", ".gitkeep", ".dockerignore"}
+
+
+def _is_sensitive(name: str) -> bool:
+    """Return True if this file requires _DEV_PASSWORD to view its contents."""
+    lower = name.lower()
+    if lower in {".env", ".env.local", ".env.production", ".env.staging", ".env.development"}:
+        return True
+    if lower.endswith((".pem", ".key", ".pfx", ".p12", ".pkcs12")):
+        return True
+    if lower in {"credentials.json", "service_account.json", "id_rsa", "id_ed25519"}:
+        return True
+    return False
+
+# ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
 
@@ -257,6 +282,75 @@ def get_git_diff(project: str) -> dict:
         return {"error": str(e)}
 
 
+def git_status_summary(project: str) -> dict:
+    """Return current branch, short status, and ahead/behind count."""
+    root = PROJECT_ROOTS.get(project.lower())
+    if not root or not root.exists():
+        return {"error": f"Project '{project}' not found or path does not exist."}
+    try:
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=root, text=True, stderr=subprocess.DEVNULL, timeout=5,
+        ).strip()
+        status = subprocess.check_output(
+            ["git", "status", "--short"],
+            cwd=root, text=True, stderr=subprocess.DEVNULL, timeout=10,
+        ).strip()
+        return {"branch": branch, "status": status}
+    except subprocess.TimeoutExpired:
+        return {"error": "git status timed out"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def git_commit_push(project: str, message: str, push: bool = True) -> dict:
+    """Stage all changes, commit, and optionally push to origin."""
+    root = PROJECT_ROOTS.get(project.lower())
+    if not root or not root.exists():
+        return {"error": f"Project '{project}' not found or path does not exist."}
+    try:
+        subprocess.check_output(
+            ["git", "add", "-A"],
+            cwd=root, text=True, stderr=subprocess.STDOUT, timeout=30,
+        )
+        commit_out = subprocess.check_output(
+            ["git", "commit", "-m", message],
+            cwd=root, text=True, stderr=subprocess.STDOUT, timeout=30,
+        )
+        if push:
+            push_out = subprocess.check_output(
+                ["git", "push"],
+                cwd=root, text=True, stderr=subprocess.STDOUT, timeout=90,
+            )
+            return {"ok": True, "output": commit_out.strip() + "\n" + push_out.strip()}
+        return {"ok": True, "output": commit_out.strip()}
+    except subprocess.CalledProcessError as e:
+        return {"error": e.output or str(e)}
+    except subprocess.TimeoutExpired:
+        return {"error": "git operation timed out"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def git_pull(project: str) -> dict:
+    """Pull latest changes from origin for a project."""
+    root = PROJECT_ROOTS.get(project.lower())
+    if not root or not root.exists():
+        return {"error": f"Project '{project}' not found or path does not exist."}
+    try:
+        result = subprocess.check_output(
+            ["git", "pull"],
+            cwd=root, text=True, stderr=subprocess.STDOUT, timeout=90,
+        )
+        return {"ok": True, "output": result.strip()}
+    except subprocess.CalledProcessError as e:
+        return {"error": e.output or str(e)}
+    except subprocess.TimeoutExpired:
+        return {"error": "git pull timed out"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def get_file_tree(project: str, sub_path: str = "") -> dict:
     """Return a JSON-serialisable file tree for the project root (or subdir)."""
     root = PROJECT_ROOTS.get(project.lower())
@@ -275,14 +369,19 @@ def get_file_tree(project: str, sub_path: str = "") -> dict:
         entries = []
         try:
             for item in sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
-                if item.name.startswith(".") and item.name not in {".env", ".env.example"}:
+                if item.name.startswith(".") and item.name not in _SHOW_HIDDEN:
                     continue
                 if item.is_dir():
                     if item.name in _SKIP_DIRS:
                         continue
                     entries.append({"name": item.name, "type": "dir", "children": _walk(item, depth + 1)})
                 else:
-                    entries.append({"name": item.name, "type": "file", "ext": item.suffix})
+                    entries.append({
+                        "name": item.name,
+                        "type": "file",
+                        "ext": item.suffix,
+                        "sensitive": _is_sensitive(item.name),
+                    })
         except PermissionError:
             pass
         return entries
@@ -290,8 +389,8 @@ def get_file_tree(project: str, sub_path: str = "") -> dict:
     return {"project": project, "root": str(base), "tree": _walk(base)}
 
 
-def read_file_contents(project: str, rel_path: str) -> dict:
-    """Read a file from a project. Returns contents or error."""
+def read_file_contents(project: str, rel_path: str, password: str = "") -> dict:
+    """Read a file from a project. Sensitive files require _DEV_PASSWORD."""
     root = PROJECT_ROOTS.get(project.lower())
     if not root:
         return {"error": f"Unknown project: {project}"}
@@ -301,7 +400,10 @@ def read_file_contents(project: str, rel_path: str) -> dict:
         return {"error": "Path traversal not allowed."}
     if not target.exists():
         return {"error": f"File not found: {rel_path}"}
-    if target.suffix not in _TEXT_EXTS and target.name not in {".env", ".gitignore"}:
+    # Gate sensitive files behind the dev password
+    if _is_sensitive(target.name) and password != _DEV_PASSWORD:
+        return {"error": "password_required", "message": "This file requires the dev password to view."}
+    if target.suffix not in _TEXT_EXTS and target.name not in _READABLE_DOTFILES:
         return {"error": f"Binary or unsupported file type: {target.suffix}"}
     try:
         contents = target.read_text(encoding="utf-8", errors="replace")

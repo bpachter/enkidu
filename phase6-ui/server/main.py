@@ -1317,11 +1317,11 @@ def dev_file_tree(project: str, path: str = ""):
 
 
 @app.get("/api/dev/file")
-def dev_read_file(project: str, path: str):
+def dev_read_file(project: str, path: str, password: str = ""):
     _wire_dev_loop()
     if not _dev:
         return JSONResponse({"error": "dev_tools unavailable"}, status_code=503)
-    return _dev.read_file_contents(project, path)
+    return _dev.read_file_contents(project, path, password)
 
 
 @app.post("/api/dev/apply")
@@ -1339,6 +1339,40 @@ def dev_apply_patch(body: _ApplyPatchRequest):
                 if p["path"] == body.path:
                     p["status"] = "accepted"
     return result
+
+
+class _GitCommitPushRequest(BaseModel):
+    project: str
+    message: str
+    push: bool = True
+
+
+class _GitPullRequest(BaseModel):
+    project: str
+
+
+@app.get("/api/dev/git/status")
+def dev_git_status(project: str):
+    _wire_dev_loop()
+    if not _dev:
+        return JSONResponse({"error": "dev_tools unavailable"}, status_code=503)
+    return _dev.git_status_summary(project)
+
+
+@app.post("/api/dev/git/commit-push")
+def dev_git_commit_push(body: _GitCommitPushRequest):
+    _wire_dev_loop()
+    if not _dev:
+        return JSONResponse({"error": "dev_tools unavailable"}, status_code=503)
+    return _dev.git_commit_push(body.project, body.message, body.push)
+
+
+@app.post("/api/dev/git/pull")
+def dev_git_pull(body: _GitPullRequest):
+    _wire_dev_loop()
+    if not _dev:
+        return JSONResponse({"error": "dev_tools unavailable"}, status_code=503)
+    return _dev.git_pull(body.project)
 
 
 @app.websocket("/ws/dev")
