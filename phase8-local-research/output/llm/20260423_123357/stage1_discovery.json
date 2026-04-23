@@ -1,0 +1,20 @@
+{
+  "targets": [
+    {
+      "name": "GPT-4o",
+      "state": "",
+      "city": "",
+      "status": "released",
+      "rationale": "OpenAI GPT-4o released in 2024 with multimodal capabilities.",
+      "seed_sources": []
+    },
+    {
+      "name": "Claude 3.5 Sonnet",
+      "state": "",
+      "city": "",
+      "status": "released",
+      "rationale": "Anthropic Claude 3.5 Sonnet released in 2024.",
+      "seed_sources": []
+    }
+  ]
+}

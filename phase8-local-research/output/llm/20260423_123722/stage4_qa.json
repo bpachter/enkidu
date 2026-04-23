@@ -1,0 +1,22 @@
+{
+  "row_count": 2,
+  "issue_count": 4,
+  "issues": [
+    {
+      "row": "0",
+      "issue": "missing_source_url"
+    },
+    {
+      "row": "0",
+      "issue": "release_date_not_iso"
+    },
+    {
+      "row": "1",
+      "issue": "missing_source_url"
+    },
+    {
+      "row": "1",
+      "issue": "release_date_not_iso"
+    }
+  ]
+}

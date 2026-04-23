@@ -97,6 +97,7 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:26b")
 _FORCE_LOCAL_ONLY = os.environ.get("ENKIDU_FORCE_LOCAL_ONLY", "0").strip().lower() in {
     "1", "true", "yes", "on"
 }
+_AGENT_MODE = os.environ.get("ENKIDU_AGENT_MODE", "local_react").strip().lower()
 
 
 # ---------------------------------------------------------------------------
@@ -608,6 +609,133 @@ def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None, save
         return None
 
 
+def _run_local_react_loop(
+    user_message: str,
+    on_step: Optional[Callable[[str], None]] = None,
+    save_memory: bool = True,
+    prior_messages: Optional[list] = None,
+    ollama_options: Optional[dict] = None,
+) -> Optional[str]:
+    """
+    Run the full ReAct/tool loop locally on Ollama/Gemma.
+
+    Returns final answer string or None when Ollama is unavailable.
+    """
+    import requests as _req
+
+    system_prompt = _build_system_prompt(user_message)
+    messages = [*(prior_messages or []), {"role": "user", "content": user_message}]
+
+    for iteration in range(MAX_ITERATIONS):
+        if on_step:
+            on_step(f"Local ReAct iteration {iteration + 1}/{MAX_ITERATIONS} on {OLLAMA_MODEL}")
+
+        try:
+            _opts = {k: v for k, v in (ollama_options or {}).items() if not (k == "seed" and v == -1)}
+            resp = _req.post(
+                f"{OLLAMA_URL}/api/chat",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        *messages,
+                    ],
+                    "stream": False,
+                    **({"options": _opts} if _opts else {}),
+                },
+                timeout=(180, 300),
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            raw = payload.get("message", {}).get("content", "")
+        except Exception:
+            return None
+
+        step, error = _parse_step(raw)
+        if error:
+            if on_step:
+                on_step("Local output malformed, retrying with schema feedback...")
+            messages.append({"role": "assistant", "content": raw})
+            messages.append({"role": "user", "content": error})
+            continue
+
+        if step.final_answer:
+            if save_memory:
+                try:
+                    import threading
+                    threading.Thread(
+                        target=_call_memory_bridge,
+                        args=("save", user_message, step.final_answer),
+                        daemon=True,
+                    ).start()
+                except Exception:
+                    pass
+            return step.final_answer
+
+        if step.action and step.action_input is not None:
+            tool_name = step.action
+            tool_args = step.action_input
+            if on_step:
+                on_step(f"Local tool call: {tool_name}")
+            observation = dispatch(tool_name, **tool_args)
+            if len(observation) > 3000:
+                observation = observation[:3000] + "\n[...truncated]"
+
+            messages.append({"role": "assistant", "content": raw})
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"[OBSERVATION from {tool_name}]\n"
+                    f"{observation}\n\n"
+                    "Continue reasoning. Output your next JSON step."
+                ),
+            })
+            continue
+
+        messages.append({"role": "assistant", "content": raw})
+        messages.append({
+            "role": "user",
+            "content": (
+                "Your JSON is missing required fields. "
+                "Include either 'action' + 'action_input' to call a tool, "
+                "or 'final_answer' to respond to the user."
+            ),
+        })
+
+    try:
+        messages.append({
+            "role": "user",
+            "content": (
+                "You've reached the iteration limit. Based on everything you've observed so far, "
+                "give your best answer to the user's original question. "
+                "Output JSON with only 'thought' and 'final_answer' fields."
+            ),
+        })
+        _opts = {k: v for k, v in (ollama_options or {}).items() if not (k == "seed" and v == -1)}
+        resp = _req.post(
+            f"{OLLAMA_URL}/api/chat",
+            json={
+                "model": OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    *messages,
+                ],
+                "stream": False,
+                **({"options": _opts} if _opts else {}),
+            },
+            timeout=(180, 300),
+        )
+        resp.raise_for_status()
+        raw = resp.json().get("message", {}).get("content", "")
+        step, _ = _parse_step(raw)
+        if step and step.final_answer:
+            return step.final_answer
+    except Exception:
+        pass
+
+    return "I reached my local reasoning limit without completing an answer. Try a narrower query."
+
+
 # ---------------------------------------------------------------------------
 # Main agent loop
 # ---------------------------------------------------------------------------
@@ -653,11 +781,22 @@ def _run_agent_inner(
     on_token: Optional[Callable[[str], None]] = None,
     ollama_options: Optional[dict] = None,
 ) -> str:
+    use_local_react = _AGENT_MODE in {"local_react", "local", "gemma_local"}
+
     # --- Routing decision ---
     if _FORCE_LOCAL_ONLY:
         if on_step:
             on_step(f"Routing: forced local GPU ({OLLAMA_MODEL})")
-        result = _run_local(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages, on_token=on_token, ollama_options=ollama_options)
+        if _needs_tools(user_message):
+            result = _run_local_react_loop(
+                user_message,
+                on_step=on_step,
+                save_memory=save_memory,
+                prior_messages=prior_messages,
+                ollama_options=ollama_options,
+            )
+        else:
+            result = _run_local(user_message, on_step=on_step, save_memory=save_memory, prior_messages=prior_messages, on_token=on_token, ollama_options=ollama_options)
         if result is not None:
             return result
         return (
@@ -674,8 +813,23 @@ def _run_agent_inner(
         # Ollama unreachable — fall through to Claude
         if on_step:
             on_step("Local GPU unavailable, falling back to cloud...")
-    elif on_step:
-        on_step("Routing: cloud tool mode (query requires tools/live data)")
+    else:
+        if use_local_react:
+            if on_step:
+                on_step(f"Routing: local ReAct tool mode ({OLLAMA_MODEL})")
+            result = _run_local_react_loop(
+                user_message,
+                on_step=on_step,
+                save_memory=save_memory,
+                prior_messages=prior_messages,
+                ollama_options=ollama_options,
+            )
+            if result is not None:
+                return result
+            if on_step:
+                on_step("Local ReAct unavailable, falling back to cloud...")
+        elif on_step:
+            on_step("Routing: cloud tool mode (query requires tools/live data)")
 
     try:
         from anthropic import Anthropic
