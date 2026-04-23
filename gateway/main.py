@@ -64,6 +64,7 @@ _PARAMS_FALLBACK = {
 
 def _fallback_api(path: str) -> tuple[dict, int] | None:
     """Return fallback JSON payloads for critical UI endpoints during outages."""
+    path = path.strip("/")
     if path == "params":
         return _PARAMS_FALLBACK, 200
     if path == "portfolio":
