@@ -24,6 +24,7 @@ GPU_URL = os.environ.get("GPU_URL", "").strip().rstrip("/")
 VOICE_GPU_URL = os.environ.get("VOICE_GPU_URL", "").strip().rstrip("/")
 ENKIDU_UI_URL = os.environ.get("ENKIDU_UI_URL", "").strip()
 VOICE_UPSTREAM_COOLDOWN_SEC = int(os.environ.get("VOICE_UPSTREAM_COOLDOWN_SEC", "20"))
+DEV_PANEL_PASSWORD = os.environ.get("ENKIDU_DEV_PASSWORD", "").strip() or "antifragile"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("enkidu.gateway")
@@ -155,6 +156,15 @@ async def probe():
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_http(request: Request, path: str):
+    # Protect dev endpoints at the gateway layer too (defense in depth).
+    if path.startswith("dev/"):
+        provided = request.headers.get("x-dev-password") or request.query_params.get("password") or ""
+        if provided != DEV_PANEL_PASSWORD:
+            return JSONResponse(
+                {"error": "dev_password_required", "message": "Dev panel requires authentication."},
+                status_code=401,
+            )
+
     if not GPU_URL:
         return Response(content=_NO_CONFIG_BODY, status_code=503, media_type="application/json")
 
@@ -203,6 +213,13 @@ async def proxy_http(request: Request, path: str):
 @app.websocket("/ws/{path:path}")
 async def proxy_ws(websocket: WebSocket, path: str):
     global _voice_block_until
+
+    # Protect dev websocket at the gateway layer.
+    if path == "dev":
+        provided = websocket.query_params.get("password", "")
+        if provided != DEV_PANEL_PASSWORD:
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
 
     ws_base = VOICE_GPU_URL if path == "voice" and VOICE_GPU_URL else GPU_URL
 
