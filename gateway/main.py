@@ -92,6 +92,17 @@ def _fallback_api(path: str) -> tuple[dict, int] | None:
             "active": "default",
             "gateway_fallback": True,
         }, 200
+    if path == "memory":
+        return {
+            "entries": [],
+            "stats": {
+                "total": 0,
+                "rated": 0,
+                "avg_score": None,
+            },
+            "gateway_fallback": True,
+            "error": "upstream unavailable (gateway fallback)",
+        }, 200
     return None
 
 
