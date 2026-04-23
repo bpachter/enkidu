@@ -160,6 +160,19 @@ def _resample(audio: np.ndarray, orig_rate: int, target_rate: int = 16000) -> np
 
 
 def transcribe(raw_bytes: bytes, sample_rate: int = 16000) -> str:
+    # Optional NVIDIA NeMo Parakeet path. Activated by ENKIDU_USE_PARAKEET=1.
+    # Falls through to Whisper on any failure so deployments without NeMo work.
+    try:
+        import parakeet_asr  # type: ignore
+        if parakeet_asr.is_enabled() and parakeet_asr.is_available():
+            audio = np.frombuffer(raw_bytes, dtype=np.float32).copy()
+            text = parakeet_asr.transcribe(audio, sample_rate=sample_rate)
+            if text:
+                return _fix_proper_nouns(text)
+            # If Parakeet produced empty output, fall back to Whisper for this call.
+    except Exception as _e:
+        logger.debug(f"Parakeet path unavailable, using Whisper: {_e!r}")
+
     model = _load_whisper()
     if model is None:
         return ""
@@ -692,12 +705,37 @@ def _synth_kokoro(text: str, voice_profile: Optional[str] = None) -> Optional[by
 def prewarm_chatterbox():
     """Pre-warm Kokoro (and F5-TTS worker if model available) in a background thread."""
     def _prewarm():
+        # NVIDIA tensor-core hints + cuDNN benchmark (idempotent, safe on CPU).
+        try:
+            import voice_optim  # type: ignore
+            voice_optim.enable_tensorcores()
+        except Exception as _e:
+            logger.debug(f"voice_optim unavailable: {_e!r}")
+
         logger.info("Pre-warming Kokoro…")
-        result = _synth_kokoro("Enkidu online.")
-        if result:
-            logger.info(f"Kokoro pre-warm complete ({len(result):,} bytes).")
-        else:
-            logger.warning("Kokoro pre-warm failed — check installation.")
+        # Multi-pass warmup so cuDNN picks the fastest convolution algorithms
+        # before the first user request. Falls back to single pass if optim missing.
+        try:
+            import voice_optim  # type: ignore
+            voice_optim.warmup_kokoro(lambda t: _synth_kokoro(t))
+        except Exception:
+            result = _synth_kokoro("Enkidu online.")
+            if result:
+                logger.info(f"Kokoro pre-warm complete ({len(result):,} bytes).")
+            else:
+                logger.warning("Kokoro pre-warm failed — check installation.")
+
+        # Auto-generate reference transcripts for any wav voice profile that
+        # is missing its sidecar .txt file. Closes the F5 cold-start hole.
+        if os.environ.get("ENKIDU_AUTO_REF_TEXT", "1") == "1":
+            try:
+                import auto_ref_text  # type: ignore
+                if _VOICES_DIR.exists():
+                    for wav in _VOICES_DIR.glob("*.wav"):
+                        auto_ref_text.ensure_ref_text(wav)
+            except Exception as _e:
+                logger.debug(f"auto_ref_text skipped: {_e!r}")
+
         # Optional F5 prewarm. Off by default because a background startup race
         # can make the first request fall through to non-clone paths.
         if _F5_PREWARM and _f5_available():

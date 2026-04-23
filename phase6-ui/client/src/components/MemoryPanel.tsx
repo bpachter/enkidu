@@ -119,14 +119,18 @@ export default function MemoryPanel() {
               <div className="dim" style={{ fontSize: 11, padding: '8px 12px' }}>no memory entries</div>
             ) : (
               memory.map((e) => (
-                <div key={e.id} style={{ borderBottom: '1px solid var(--border)', background: expanded === e.id ? '#0a0c14' : 'transparent' }}>
+                <div key={e.id} style={{ borderBottom: '1px solid var(--border)', background: expanded === e.id ? 'var(--bg-elevated)' : 'transparent', transition: 'background 140ms ease' }}>
                   <div
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '6px 10px', cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', cursor: 'pointer' }}
                     onClick={() => setExpanded(expanded === e.id ? null : e.id)}
                   >
                     <span style={{
-                      fontSize: 9, padding: '1px 4px', flexShrink: 0, marginTop: 1,
-                      background: e.score !== null ? (e.score >= 7 ? 'var(--green-dim)' : e.score >= 4 ? '#3a2a00' : '#2a0008') : 'var(--border)',
+                      fontSize: 9.5, padding: '2px 6px', flexShrink: 0, marginTop: 1,
+                      borderRadius: 2,
+                      fontFamily: 'var(--font-display)', fontWeight: 600,
+                      letterSpacing: '0.06em',
+                      background: e.score !== null ? (e.score >= 7 ? 'rgba(61,220,132,0.12)' : e.score >= 4 ? 'rgba(255,177,59,0.12)' : 'rgba(255,77,109,0.12)') : 'var(--border)',
+                      border: '1px solid ' + (e.score !== null ? (e.score >= 7 ? 'var(--green-dim)' : e.score >= 4 ? 'var(--amber-dim)' : 'var(--red-dim)') : 'var(--border-strong)'),
                       color: e.score !== null ? (e.score >= 7 ? 'var(--green)' : e.score >= 4 ? 'var(--amber)' : 'var(--red)') : 'var(--white-dim)',
                     }}>
                       {e.score !== null ? e.score.toFixed(1) : '—'}

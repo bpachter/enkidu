@@ -985,6 +985,180 @@ _VOICES_DIR = Path(__file__).parent / "voices"
 if _VOICES_DIR.exists():
     app.mount("/voices", StaticFiles(directory=str(_VOICES_DIR)), name="voices")
 
+
+# ---------------------------------------------------------------------------
+# Avalon — datacenter siting (phase7) bridge
+# ---------------------------------------------------------------------------
+
+_PHASE7 = _ROOT / "phase7-datacenter-siting"
+if str(_PHASE7) not in sys.path:
+    sys.path.insert(0, str(_PHASE7))
+
+
+def _import_siting():
+    """Lazy import of phase7 scoring engine. Returns module bundle or None."""
+    try:
+        from src import config as siting_config  # type: ignore
+        from src.score import Site, score_sites  # type: ignore
+        from src.factors import FACTOR_REGISTRY  # type: ignore
+        return {
+            "config": siting_config,
+            "Site": Site,
+            "score_sites": score_sites,
+            "FACTOR_REGISTRY": FACTOR_REGISTRY,
+        }
+    except Exception as e:
+        logger.warning(f"phase7 siting unavailable: {e}")
+        return None
+
+
+def _load_sample_sites() -> list[dict]:
+    import csv as _csv
+    csv_path = _PHASE7 / "config" / "sample_sites.csv"
+    out: list[dict] = []
+    if not csv_path.exists():
+        return out
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        for row in _csv.DictReader(f):
+            try:
+                out.append({
+                    "site_id": row["site_id"],
+                    "name":    row.get("name", row["site_id"]),
+                    "lat":     float(row["lat"]),
+                    "lon":     float(row["lon"]),
+                    "acres":   float(row["acres"]) if row.get("acres") else None,
+                    "state":   row.get("state", ""),
+                    "notes":   row.get("notes", ""),
+                })
+            except (KeyError, ValueError):
+                continue
+    return out
+
+
+@app.get("/api/siting/health")
+def siting_health():
+    """Report whether the phase7 engine is wired up."""
+    bundle = _import_siting()
+    if not bundle:
+        return {"ok": False, "error": "phase7 module not importable"}
+    cfg = bundle["config"]
+    return {
+        "ok":          True,
+        "factors":     list(cfg.FACTOR_NAMES),
+        "archetypes":  ["training", "inference", "mixed"],
+        "default":     cfg.DEFAULT_ARCHETYPE,
+        "sample_path": str(_PHASE7 / "config" / "sample_sites.csv"),
+    }
+
+
+@app.get("/api/siting/factors")
+def siting_factors():
+    """Return factor catalog with current implementation status."""
+    bundle = _import_siting()
+    if not bundle:
+        return JSONResponse({"error": "phase7 unavailable"}, status_code=503)
+    cfg = bundle["config"]
+    # Probe each factor with a dummy site to detect stub_result vs real impl
+    Site = bundle["Site"]
+    probe = Site(site_id="_probe", lat=39.0, lon=-77.6)  # Loudoun VA
+    out = []
+    for fname in cfg.FACTOR_NAMES:
+        fn = bundle["FACTOR_REGISTRY"][fname]
+        try:
+            res = fn(probe)
+            prov = res.provenance or {}
+            is_stub = bool(prov.get("stub")) or "TODO" in str(prov)
+            out.append({
+                "name":       fname,
+                "implemented": not is_stub,
+                "provenance": prov,
+            })
+        except Exception as e:
+            out.append({"name": fname, "implemented": False, "provenance": {"error": repr(e)}})
+    return {"factors": out}
+
+
+@app.get("/api/siting/weights")
+def siting_weights(archetype: str = "training"):
+    """Return factor weights for the requested archetype."""
+    bundle = _import_siting()
+    if not bundle:
+        return JSONResponse({"error": "phase7 unavailable"}, status_code=503)
+    try:
+        weights = bundle["config"].load_weights(archetype)  # type: ignore[arg-type]
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"archetype": archetype, "weights": weights}
+
+
+@app.get("/api/siting/sample")
+def siting_sample():
+    """Return the sample sites catalog (for map markers + scoring)."""
+    return {"sites": _load_sample_sites()}
+
+
+class SitingScoreRequest(BaseModel):
+    archetype: Optional[str] = "training"
+    weight_overrides: Optional[dict] = None
+    sites: Optional[list[dict]] = None  # if omitted, scores the sample catalog
+
+
+@app.post("/api/siting/score")
+def siting_score(body: SitingScoreRequest):
+    """Score a cohort of sites and return composite + per-factor breakdowns."""
+    bundle = _import_siting()
+    if not bundle:
+        return JSONResponse({"error": "phase7 unavailable"}, status_code=503)
+
+    raw_sites = body.sites if body.sites else _load_sample_sites()
+    if not raw_sites:
+        return JSONResponse({"error": "no sites provided"}, status_code=400)
+
+    Site = bundle["Site"]
+    sites = []
+    for s in raw_sites:
+        try:
+            sites.append(Site(
+                site_id=str(s["site_id"]),
+                lat=float(s["lat"]),
+                lon=float(s["lon"]),
+                extras={k: v for k, v in s.items() if k not in {"site_id", "lat", "lon"}},
+            ))
+        except (KeyError, ValueError, TypeError):
+            continue
+
+    try:
+        results = bundle["score_sites"](
+            sites,
+            archetype=body.archetype or "training",  # type: ignore[arg-type]
+            weight_overrides=body.weight_overrides,
+        )
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        logger.error(f"siting score error: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+    # Merge geometry back in for the client (lat/lon/name)
+    by_id = {s["site_id"]: s for s in raw_sites}
+    enriched = []
+    for r in results:
+        d = r.to_dict()
+        meta = by_id.get(r.site_id, {})
+        d["lat"]   = meta.get("lat")
+        d["lon"]   = meta.get("lon")
+        d["name"]  = meta.get("name", r.site_id)
+        d["state"] = meta.get("state", "")
+        d["acres"] = meta.get("acres")
+        enriched.append(d)
+    enriched.sort(key=lambda d: d["composite"], reverse=True)
+    return {
+        "archetype": body.archetype or "training",
+        "count":     len(enriched),
+        "results":   enriched,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Serve compiled React SPA (production)
 # ---------------------------------------------------------------------------

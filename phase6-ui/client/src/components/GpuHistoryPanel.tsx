@@ -10,14 +10,15 @@ import {
 import { useStore } from '../store'
 import type { GpuHistoryPoint } from '../store'
 
+// Palette aligned with v9 operator-console design tokens
 const C = {
-  gpu:      { stroke: '#00e5ff', fill: '#00e5ff18' },
-  vram:     { stroke: '#ff9500', fill: '#ff950018' },
-  temp:     { stroke: '#39d353', fill: '#39d35318' },
-  power:    { stroke: '#ff1a40', fill: '#ff1a4018' },
-  clock_sm: { stroke: '#c084fc', fill: '#c084fc15' },
+  gpu:      { stroke: '#22d3ee', fill: '#22d3ee18' },
+  vram:     { stroke: '#ffb13b', fill: '#ffb13b18' },
+  temp:     { stroke: '#3ddc84', fill: '#3ddc8418' },
+  power:    { stroke: '#ff4d6d', fill: '#ff4d6d18' },
+  clock_sm: { stroke: '#a78bfa', fill: '#a78bfa15' },
   clock_mem:{ stroke: '#818cf8', fill: '#818cf815' },
-  cpu:      { stroke: '#8899aa', fill: '#8899aa12' },
+  cpu:      { stroke: '#7a8499', fill: '#7a849912' },
 }
 
 function threshold(val: number, warn: number, crit: number): string {
@@ -30,11 +31,19 @@ function SparkTip({ active, payload, unit }: any) {
   if (!active || !payload?.length) return null
   const v = payload[0]?.value
   return (
-    <div style={{
-      background: '#0b0d14', border: '1px solid #1a2035',
-      padding: '2px 6px', fontSize: 9, fontFamily: 'var(--font-mono)',
-      color: payload[0]?.color ?? '#ff9500',
-    }}>
+    <div
+      style={{
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-strong)',
+        padding: '3px 7px',
+        fontSize: 10,
+        fontFamily: 'var(--font-mono)',
+        fontVariantNumeric: 'tabular-nums',
+        color: payload[0]?.color ?? 'var(--amber)',
+        borderRadius: 3,
+        boxShadow: '0 4px 12px -4px rgba(0,0,0,0.6)',
+      }}
+    >
       {typeof v === 'number' ? v.toFixed(1) : '—'}{unit}
     </div>
   )
@@ -140,8 +149,16 @@ export default function GpuHistoryPanel() {
   if (!stats || history.length === 0) {
     return (
       <div className="hw-bar" style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 11, color: 'var(--white-dim)', letterSpacing: '0.12em' }}>
-          ◈ COLLECTING HARDWARE DATA…
+        <span
+          className="font-display animate-pulse-soft"
+          style={{
+            fontSize: 11,
+            color: 'var(--white-dim)',
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+          }}
+        >
+          ◈ Collecting telemetry…
         </span>
       </div>
     )

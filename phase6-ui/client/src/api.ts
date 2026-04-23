@@ -151,3 +151,68 @@ export function createGpuSocket(onStats: (s: object) => void): WebSocket {
   ws.onmessage = (ev) => onStats(JSON.parse(ev.data))
   return ws
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Avalon — datacenter siting (phase7 bridge)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SitingSite {
+  site_id: string
+  name:    string
+  lat:     number
+  lon:     number
+  acres?:  number | null
+  state?:  string
+  notes?:  string
+}
+
+export interface SitingFactor {
+  name:        string
+  implemented: boolean
+  provenance:  Record<string, unknown>
+}
+
+export interface SitingScore {
+  site_id:        string
+  name:           string
+  state:          string
+  lat:            number | null
+  lon:            number | null
+  acres:          number | null
+  composite:      number
+  archetype:      string
+  sub_scores:     Record<string, number>
+  raw_sub_scores: Record<string, number | null>
+  kill_flags:     Record<string, boolean>
+  weights_used:   Record<string, number>
+  provenance:     Record<string, unknown>
+}
+
+export async function fetchSitingSample(): Promise<{ sites: SitingSite[] }> {
+  return fetchJsonWithRetry(`${API_BASE}/api/siting/sample`, 'siting/sample')
+}
+
+export async function fetchSitingFactors(): Promise<{ factors: SitingFactor[] }> {
+  return fetchJsonWithRetry(`${API_BASE}/api/siting/factors`, 'siting/factors')
+}
+
+export async function fetchSitingWeights(
+  archetype: 'training' | 'inference' | 'mixed',
+): Promise<{ archetype: string; weights: Record<string, number> }> {
+  return fetchJsonWithRetry(
+    `${API_BASE}/api/siting/weights?archetype=${archetype}`,
+    'siting/weights',
+  )
+}
+
+export async function scoreSites(body: {
+  archetype?: 'training' | 'inference' | 'mixed'
+  weight_overrides?: Record<string, number>
+  sites?: SitingSite[]
+}): Promise<{ archetype: string; count: number; results: SitingScore[] }> {
+  return fetchJsonWithRetry(`${API_BASE}/api/siting/score`, 'siting/score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

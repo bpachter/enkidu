@@ -7,11 +7,11 @@ import { fetchRegime, fetchPortfolio } from '../api'
 
 type View = 'table' | 'quality' | 'value'
 
-const AMBER  = '#ff9500'
-const CYAN   = '#00e5ff'
-const GREEN  = '#39d353'
-const RED    = '#ff1a40'
-const DIM    = '#1a2035'
+const AMBER  = '#ffb13b'
+const CYAN   = '#22d3ee'
+const GREEN  = '#3ddc84'
+const RED    = '#ff4d6d'
+const DIM    = '#1a2138'
 
 function scoreColor(s: number) {
   return s >= 70 ? GREEN : s >= 50 ? AMBER : RED
@@ -20,11 +20,19 @@ function scoreColor(s: number) {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div style={{
-      background: '#0b0d14', border: '1px solid #1a2035',
-      padding: '4px 8px', fontSize: 11, fontFamily: 'var(--font-mono)',
-    }}>
-      <div style={{ color: CYAN }}>{label}</div>
+    <div
+      style={{
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-strong)',
+        padding: '5px 9px',
+        fontSize: 11,
+        fontFamily: 'var(--font-mono)',
+        fontVariantNumeric: 'tabular-nums',
+        borderRadius: 3,
+        boxShadow: '0 6px 16px -6px rgba(0,0,0,0.6)',
+      }}
+    >
+      <div style={{ color: CYAN, marginBottom: 2, fontWeight: 600 }}>{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} style={{ color: p.color ?? AMBER }}>
           {p.name}: {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
