@@ -12,6 +12,7 @@ import asyncio
 import logging
 import os
 import time
+import json
 
 import httpx
 import websockets
@@ -47,6 +48,51 @@ _NO_CONFIG_BODY = b'{"error":"GPU_URL not configured","online":false}'
 # home GPU origin is unavailable), clients can reconnect in a tight loop.
 # Use a short cooldown to fast-fail subsequent attempts and reduce log storms.
 _voice_block_until = 0.0
+
+_PARAMS_FALLBACK = {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40,
+    "min_p": 0.0,
+    "repeat_penalty": 1.1,
+    "num_ctx": 8192,
+    "num_predict": 2048,
+    "seed": -1,
+    "gateway_fallback": True,
+}
+
+
+def _fallback_api(path: str) -> tuple[dict, int] | None:
+    """Return fallback JSON payloads for critical UI endpoints during outages."""
+    if path == "params":
+        return _PARAMS_FALLBACK, 200
+    if path == "portfolio":
+        return {
+            "picks": [],
+            "error": "upstream unavailable (gateway fallback)",
+            "provenance": None,
+            "gateway_fallback": True,
+        }, 200
+    if path == "regime":
+        return {
+            "regime": "Unknown",
+            "confidence": 0,
+            "error": "upstream unavailable (gateway fallback)",
+            "gateway_fallback": True,
+        }, 200
+    if path == "history":
+        return {
+            "exchanges": [],
+            "error": "upstream unavailable (gateway fallback)",
+            "gateway_fallback": True,
+        }, 200
+    if path == "voices":
+        return {
+            "voices": ["default", "bm_george", "bm_lewis", "am_adam", "am_michael", "af_heart", "bf_emma", "bf_isabella"],
+            "active": "default",
+            "gateway_fallback": True,
+        }, 200
+    return None
 
 
 @app.get("/")
@@ -107,6 +153,14 @@ async def proxy_http(request: Request, path: str):
                 headers=headers,
                 content=await request.body(),
             )
+
+        # Graceful degradation for key UI reads when upstream is returning 5xx.
+        if request.method == "GET" and resp.status_code >= 500:
+            fb = _fallback_api(path)
+            if fb is not None:
+                body, code = fb
+                return JSONResponse(body, status_code=code)
+
         return Response(
             content=resp.content,
             status_code=resp.status_code,
@@ -114,6 +168,11 @@ async def proxy_http(request: Request, path: str):
         )
     except Exception as e:
         logger.warning("GPU proxy error (%s): %s", type(e).__name__, e)
+        if request.method == "GET":
+            fb = _fallback_api(path)
+            if fb is not None:
+                body, code = fb
+                return JSONResponse(body, status_code=code)
         return Response(content=_OFFLINE_BODY, status_code=503, media_type="application/json")
 
 
@@ -174,6 +233,38 @@ async def proxy_ws(websocket: WebSocket, path: str):
     except Exception as e:
         if path == "voice":
             _voice_block_until = time.time() + max(1, VOICE_UPSTREAM_COOLDOWN_SEC)
+        if path == "gpu":
+            # Keep UI alive with a lightweight stub stream while upstream is down.
+            try:
+                while True:
+                    payload = {
+                        "gpu_util": 0,
+                        "mem_util": 0,
+                        "vram_used": 0,
+                        "vram_total": 0,
+                        "temp": 0,
+                        "power_draw": 0,
+                        "power_limit": 0,
+                        "clock_sm": 0,
+                        "clock_mem": 0,
+                        "fan_speed": 0,
+                        "cpu_percent": 0,
+                        "ram_used_gb": 0,
+                        "ram_total_gb": 0,
+                        "ram_percent": 0,
+                        "ts": time.time(),
+                        "gateway_fallback": True,
+                        "upstream_error": "gpu upstream unavailable",
+                    }
+                    await websocket.send_text(json.dumps(payload))
+                    await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            try:
+                await websocket.close(code=1011, reason="GPU upstream unavailable")
+            except Exception:
+                pass
+            return
         logger.warning("WS upstream unreachable (%s): %s", path, e)
         try:
             await websocket.close(code=1011, reason="Home GPU offline or upstream rejected")
