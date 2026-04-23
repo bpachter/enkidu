@@ -56,7 +56,11 @@ def _get_voice():
         _voice = mod
         logger.info("Voice module loaded.")
         try:
-            mod.prewarm_chatterbox()
+            if hasattr(mod, "prewarm_tts"):
+                mod.prewarm_tts()
+            elif hasattr(mod, "prewarm_chatterbox"):
+                # Backward compatibility with older voice.py versions.
+                mod.prewarm_chatterbox()
             logger.info("Voice pre-warm started (background thread).")
         except Exception as e:
             logger.error(f"Voice pre-warm failed: {e}", exc_info=True)
@@ -243,6 +247,11 @@ _gemma_params = _load_params()
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Enkidu UI", version="7.0.0")
+
+_VOICE_MAX_B64_CHARS = int(os.environ.get("ENKIDU_VOICE_MAX_B64_CHARS", "8000000"))
+_VOICE_MAX_RAW_BYTES = int(os.environ.get("ENKIDU_VOICE_MAX_RAW_BYTES", "5000000"))
+_VOICE_MIN_RATE = int(os.environ.get("ENKIDU_VOICE_MIN_SAMPLE_RATE", "8000"))
+_VOICE_MAX_RATE = int(os.environ.get("ENKIDU_VOICE_MAX_SAMPLE_RATE", "48000"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -860,8 +869,39 @@ async def ws_voice(ws: WebSocket):
             if data.get("type") != "audio":
                 continue
 
-            raw_bytes    = base64.b64decode(data["data"])
-            sample_rate  = int(data.get("rate", 16000))
+            b64_audio = data.get("data", "")
+            if not isinstance(b64_audio, str) or not b64_audio:
+                await ws.send_json({"type": "error", "content": "Invalid audio payload"})
+                await ws.send_json({"type": "done"})
+                continue
+            if len(b64_audio) > _VOICE_MAX_B64_CHARS:
+                await ws.send_json({"type": "error", "content": "Audio payload too large"})
+                await ws.send_json({"type": "done"})
+                continue
+
+            try:
+                raw_bytes = base64.b64decode(b64_audio, validate=True)
+            except Exception:
+                await ws.send_json({"type": "error", "content": "Malformed base64 audio"})
+                await ws.send_json({"type": "done"})
+                continue
+
+            if len(raw_bytes) > _VOICE_MAX_RAW_BYTES:
+                await ws.send_json({"type": "error", "content": "Decoded audio exceeds size limit"})
+                await ws.send_json({"type": "done"})
+                continue
+
+            try:
+                sample_rate = int(data.get("rate", 16000))
+            except Exception:
+                await ws.send_json({"type": "error", "content": "Invalid sample rate"})
+                await ws.send_json({"type": "done"})
+                continue
+            if sample_rate < _VOICE_MIN_RATE or sample_rate > _VOICE_MAX_RATE:
+                await ws.send_json({"type": "error", "content": "Unsupported sample rate"})
+                await ws.send_json({"type": "done"})
+                continue
+
             voice_profile = _effective_voice_profile(data.get("voice_profile"))
 
             # ── 1. Transcribe ──────────────────────────────────────────────

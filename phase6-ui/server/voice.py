@@ -1,31 +1,15 @@
 """
 phase6-ui/server/voice.py — Speech-to-text + text-to-speech for Enkidu
 
-STT: faster-whisper (base.en CUDA float16 → CPU int8 fallback)
-     initial_prompt biases Whisper toward "Enkidu" and other proper nouns
+STT: faster-whisper (base.en CUDA float16 -> CPU int8 fallback)
 
 TTS priority:
-  1. Kokoro  — fast local neural TTS (~50-100ms on RTX 4090)
-               Voices: af_heart (default — BMO), bm_lewis, am_michael, etc.
-               Character FX applied: pitch shift + game-console speaker chain
-  2. F5-TTS  — if Kokoro unavailable AND a .wav voice profile is present
-               Voice cloning from reference audio (~2-5s, subprocess worker)
-  3. Chatterbox — if F5-TTS unavailable AND .wav profile present (~25s)
-  4. edge-tts BrianNeural — cloud neural TTS (internet required)
-  5. pyttsx3 SAPI5 — offline Windows last resort
+    1. Kokoro (fast local neural TTS)
+    2. edge-tts (cloud fallback)
+    3. pyttsx3 SAPI5 (offline Windows fallback)
 
-Voice profiles (.wav):
-  Drop any .wav into phase6-ui/server/voices/ — used as reference by F5/Chatterbox.
-  Kokoro uses its own built-in voices (no reference wav needed).
-  GET /api/voices → list of all available voice IDs (Kokoro + wav profiles)
-  Active voice stored in module-level _active_voice.
-
-Character FX (tunable via env vars):
-  ENKIDU_PITCH     — semitones, positive = higher (default: +5.5 for BMO)
-  ENKIDU_LOW_BOOST — dB bass shelf boost (default: 0.0)
-  KOKORO_VOICE     — default Kokoro voice ID (default: af_heart)
-  KOKORO_SPEED     — speech speed multiplier (default: 0.90)
-  KOKORO_LANG      — pipeline lang code: 'b'=British, 'a'=American (default: a)
+Voice cloning paths were intentionally removed from active runtime flow to
+favor reliability, low latency, and lower GPU pressure.
 """
 
 import asyncio
@@ -73,10 +57,8 @@ _KOKORO_LANG_MAP: dict[str, str] = {
 
 
 def list_voices() -> list[str]:
-    """Return available voice IDs — only wav profiles (Kokoro built-ins are internal fallbacks)."""
-    if not _VOICES_DIR.exists():
-        return []
-    return sorted(p.stem for p in _VOICES_DIR.glob("*.wav"))
+    """Return available voice IDs (Kokoro built-ins only)."""
+    return sorted(set(_KOKORO_BUILTIN))
 
 
 def get_voice_path(profile_id: str) -> Optional[Path]:
@@ -704,8 +686,8 @@ def _synth_kokoro(text: str, voice_profile: Optional[str] = None) -> Optional[by
         return None
 
 
-def prewarm_chatterbox():
-    """Pre-warm Kokoro (and F5-TTS worker if model available) in a background thread."""
+def prewarm_tts():
+    """Pre-warm Kokoro in a background thread."""
     def _prewarm():
         # NVIDIA tensor-core hints + cuDNN benchmark (idempotent, safe on CPU).
         try:
@@ -746,12 +728,12 @@ def prewarm_chatterbox():
             except Exception as _e:
                 logger.error(f"auto_ref_text failed: {_e!r}")
 
-        # Optional F5 prewarm. Off by default because a background startup race
-        # can make the first request fall through to non-clone paths.
-        if _F5_PREWARM and _f5_available():
-            t = threading.Thread(target=_start_f5_worker, name="f5-prewarm", daemon=True)
-            t.start()
     threading.Thread(target=_prewarm, name="kokoro-prewarm", daemon=True).start()
+
+
+def prewarm_chatterbox():
+    """Backward-compatible alias retained for existing callers."""
+    prewarm_tts()
 
 
 # ---------------------------------------------------------------------------
@@ -1332,51 +1314,29 @@ async def synthesize(text: str, voice_profile: Optional[str] = None) -> tuple[by
     """
     Full-text synthesis. Returns (audio_bytes, format_str).
 
-    Priority:
-      • If the chosen profile has a reference .wav AND F5-TTS is available,
-        use F5-TTS (voice cloning) first so 'megatron' actually sounds like
-        the reference clip.
-      • Otherwise Kokoro is the primary path (fast, local, with FX).
-      • Fall back: Chatterbox → edge-tts → pyttsx3 SAPI5.
+        Priority:
+            • Kokoro is the primary path (fast, local).
+            • Fall back: edge-tts -> pyttsx3 SAPI5.
     """
     text = _strip_markdown(text)
     if not text.strip():
         return b"", "wav"
 
     profile    = voice_profile if voice_profile is not None else _active_voice
-    # A wav-only profile is any profile name that isn't a built-in Kokoro voice
-    # AND has a .wav reference file in voices/.
-    is_wav_profile = profile not in _KOKORO_LANG_MAP
-    voice_path     = get_voice_path(profile) if is_wav_profile else None
     loop           = asyncio.get_event_loop()
 
-    # 1. F5-TTS first when the user explicitly picked a wav profile.
-    if voice_path is not None and _f5_available():
-        wav = await loop.run_in_executor(None, lambda: _synth_f5tts(text, voice_path))
-        if wav:
-            return _postprocess_wav_bytes(wav, profile), "wav"
-        logger.warning("F5-TTS failed for wav profile, trying Chatterbox…")
-
-    # 2. Chatterbox (slower voice cloning) when wav profile chosen.
-    if voice_path is not None:
-        wav = await loop.run_in_executor(None, lambda: _synth_chatterbox(text, voice_path))
-        if wav:
-            return _postprocess_wav_bytes(wav, profile), "wav"
-        logger.warning("Chatterbox failed, falling through to Kokoro…")
-
-    # 3. Kokoro (primary path for built-in voices; also fallback for wav profiles
-    #    when both voice cloners are unavailable).
+    # 1. Kokoro (primary local path).
     wav = await loop.run_in_executor(None, lambda: _synth_kokoro(text, profile))
     if wav:
         return wav, "wav"
     logger.warning("Kokoro failed, falling back to edge-tts…")
 
-    # 4. edge-tts (cloud)
+    # 2. edge-tts (cloud)
     mp3 = await _synth_edge_tts(text)
     if mp3:
         return mp3, "mp3"
 
-    # 5. pyttsx3 SAPI5 (offline)
+    # 3. pyttsx3 SAPI5 (offline)
     try:
         wav = await loop.run_in_executor(None, lambda: _synth_sapi(text))
         if wav:
@@ -1399,10 +1359,8 @@ async def synthesize_streaming(
     (~50-100 ms each) — the client starts playing sentence 0 while the server
     generates sentence 1.
 
-    For .wav profiles (e.g. 'megatron'), streaming defaults to a fast Kokoro path
-    with the Megatron FX chain to keep the UI responsive. You can opt back into
-    per-sentence voice cloning with ENKIDU_STREAM_CLONE=1, but that is slower and
-    can stall if F5/Chatterbox workers are unhealthy.
+    Streaming path is Kokoro-first for all profiles to prioritize reliability and
+    low latency.
     """
     text = _strip_markdown(text)
     if not text.strip():
@@ -1410,43 +1368,10 @@ async def synthesize_streaming(
 
     sentences  = split_sentences(text)
     profile    = voice_profile if voice_profile is not None else _active_voice
-    is_wav_profile = profile not in _KOKORO_LANG_MAP and get_voice_path(profile) is not None
-    stream_clone = os.environ.get("ENKIDU_STREAM_CLONE", "0") == "1"
-    # Quality-clone mode is OFF by default: F5-TTS takes 40-60s to load + synthesize,
-    # which exceeds the 60s TTS wall clock and produces silence.
-    # The Kokoro+FX chain already delivers the full Megatron sound in <1s/sentence.
-    # Enable with ENKIDU_CLONE_QUALITY_MODE=1 only if F5-TTS is pre-warmed (ENKIDU_PREWARM_F5=1).
-    clone_quality_mode = os.environ.get("ENKIDU_CLONE_QUALITY_MODE", "0") == "1"
-    clone_targets_raw = os.environ.get("ENKIDU_CLONE_TARGETS", "megatron")
-    clone_targets = [t.strip().lower() for t in clone_targets_raw.split(",") if t.strip()]
-    force_quality_clone = bool(profile) and any(t in profile.lower() for t in clone_targets)
     loop       = asyncio.get_event_loop()
-
-    # Quality-first mode: synthesize full utterance in one clone pass.
-    # Only enabled when ENKIDU_CLONE_QUALITY_MODE=1 AND F5 is already warm.
-    if is_wav_profile and clone_quality_mode and force_quality_clone:
-        wav_bytes, fmt = await synthesize(text, voice_profile=profile)
-        if wav_bytes:
-            await on_sentence(wav_bytes, fmt, 0)
-            return
 
     for seq, sentence in enumerate(sentences):
         if not sentence.strip():
-            continue
-
-        if is_wav_profile and stream_clone:
-            # Skip F5-TTS for very short fragments — the model echoes the reference
-            # transcript when input text is too short (< 12 chars), producing
-            # hallucinations like "surprise" leaking from the sidecar .txt file.
-            if len(sentence.strip()) < 12:
-                wav = await loop.run_in_executor(None, lambda s=sentence: _synth_kokoro(s, profile))
-                if wav:
-                    await on_sentence(wav, "wav", seq)
-                continue
-            # Optional: route through full clone pipeline for wav profiles.
-            wav_bytes, fmt = await synthesize(sentence, voice_profile=profile)
-            if wav_bytes:
-                await on_sentence(wav_bytes, fmt, seq)
             continue
 
         wav = await loop.run_in_executor(None, lambda s=sentence: _synth_kokoro(s, profile))
