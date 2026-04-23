@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
 GPU_URL = os.environ.get("GPU_URL", "").strip().rstrip("/")
+VOICE_GPU_URL = os.environ.get("VOICE_GPU_URL", "").strip().rstrip("/")
 ENKIDU_UI_URL = os.environ.get("ENKIDU_UI_URL", "").strip()
 VOICE_UPSTREAM_COOLDOWN_SEC = int(os.environ.get("VOICE_UPSTREAM_COOLDOWN_SEC", "20"))
 
@@ -65,7 +66,11 @@ def root():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "gpu_url_configured": bool(GPU_URL)}
+    return {
+        "ok": True,
+        "gpu_url_configured": bool(GPU_URL),
+        "voice_gpu_url_configured": bool(VOICE_GPU_URL),
+    }
 
 
 @app.get("/api/probe")
@@ -116,7 +121,9 @@ async def proxy_http(request: Request, path: str):
 async def proxy_ws(websocket: WebSocket, path: str):
     global _voice_block_until
 
-    if not GPU_URL:
+    ws_base = VOICE_GPU_URL if path == "voice" and VOICE_GPU_URL else GPU_URL
+
+    if not ws_base:
         await websocket.close(code=1011, reason="GPU_URL not configured")
         return
 
@@ -127,7 +134,7 @@ async def proxy_ws(websocket: WebSocket, path: str):
         await websocket.close(code=1013, reason=f"Voice upstream cooling down ({remaining}s)")
         return
 
-    ws_url = GPU_URL.replace("https://", "wss://").replace("http://", "ws://")
+    ws_url = ws_base.replace("https://", "wss://").replace("http://", "ws://")
     target = f"{ws_url}/ws/{path}"
 
     await websocket.accept()
