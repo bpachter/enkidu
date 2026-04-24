@@ -65,11 +65,15 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
           )}
           style={{
             background:
-              tone === 'amber' || tone === 'green'
-                ? 'linear-gradient(180deg, rgba(0,255,65,0.06), transparent), var(--bg-sunken)'
-                : tone === 'cyan' || tone === 'violet'
-                ? 'linear-gradient(180deg, rgba(0,255,204,0.06), transparent), var(--bg-sunken)'
-                : 'linear-gradient(180deg, rgba(0,255,65,0.06), transparent), var(--bg-sunken)',
+              tone === 'cyan'
+                ? 'linear-gradient(180deg, rgba(56,189,248,0.06), transparent), var(--bg-sunken)'
+                : tone === 'violet'
+                ? 'linear-gradient(180deg, rgba(167,139,250,0.06), transparent), var(--bg-sunken)'
+                : tone === 'green'
+                ? 'linear-gradient(180deg, rgba(74,222,128,0.06), transparent), var(--bg-sunken)'
+                : tone === 'red'
+                ? 'linear-gradient(180deg, rgba(248,113,113,0.06), transparent), var(--bg-sunken)'
+                : 'linear-gradient(180deg, rgba(65,145,247,0.06), transparent), var(--bg-sunken)',
           }}
         >
           <span className={cn('h-1.5 w-1.5 rounded-full', TONE_DOT[tone])} />

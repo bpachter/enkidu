@@ -33,8 +33,8 @@ const CAT_COLORS: Record<string, string> = {
   rtx4090:    'var(--cyan)',
   memory:     'var(--amber)',
   execution:  'var(--green)',
-  performance:'#00f5d4',
-  gemma4:     '#00ccaa',
+  performance:'#818cf8',
+  gemma4:     '#60a5fa',
   inference:  'var(--amber)',
 }
 
