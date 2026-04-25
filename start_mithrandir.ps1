@@ -4,11 +4,10 @@
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-$tunnelName = if ($env:MITHRANDIR_CLOUDFLARE_TUNNEL) { $env:MITHRANDIR_CLOUDFLARE_TUNNEL } else { 'mithrandir' }
-
 # Ensure the previous tunnel process is not stale before launching.
 Get-Process -Name "cloudflared" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Process -WindowStyle Minimized -FilePath "cloudflared" -ArgumentList "tunnel run $tunnelName"
+# config.yml in ~/.cloudflared already specifies the tunnel UUID and ingress rules.
+Start-Process -WindowStyle Minimized -FilePath "cloudflared" -ArgumentList "tunnel run"
 
 Start-Sleep -Seconds 4
 
@@ -33,4 +32,4 @@ if (-not $listening) {
 	Write-Host "Warning: backend did not bind to :8000. Check server.err.log for details."
 }
 
-Write-Host "Mithrandir started. Tunnel '$tunnelName' + server running in background."
+Write-Host "Mithrandir started. Tunnel (gpu.bpachter.dev) + server running in background."
