@@ -2,7 +2,7 @@
 
 A stock screening pipeline based on the methodology from *Quantitative Value* (Wesley Gray & Tobias Carlisle). Fetches SEC EDGAR financial data for ~9,867 public companies, computes quality and value metrics, and produces a ranked portfolio of the most undervalued high-quality stocks.
 
-This pipeline is bundled with Enkidu and powers the `edgar_screener.py` tool — when you ask Enkidu about stocks, it queries this data.
+This pipeline is bundled with Gandalf and powers the `edgar_screener.py` tool — when you ask Gandalf about stocks, it queries this data.
 
 ---
 
@@ -15,7 +15,7 @@ This pipeline is bundled with Enkidu and powers the `edgar_screener.py` tool —
 5. **Screens the universe** — keeps stocks with positive EBIT, quality ≥ 50th percentile, value composite ≤ 30th percentile
 6. **Outputs a portfolio CSV** — ~360 stocks saved to `data/processed/quantitative_value_portfolio.csv`
 
-Enkidu's `/refresh` command runs both pipeline stages and regenerates this file.
+Gandalf's `/refresh` command runs both pipeline stages and regenerates this file.
 
 ---
 
@@ -69,7 +69,7 @@ Result: ~360 stocks from the ~9,867-company EDGAR universe (as of last refresh).
 
 ### 1. Create the venv
 
-The QV pipeline has heavier dependencies (edgartools, scipy) that conflict with the main Enkidu environment. Install into a dedicated venv:
+The QV pipeline has heavier dependencies (edgartools, scipy) that conflict with the main Gandalf environment. Install into a dedicated venv:
 
 ```bash
 cd phase2-tool-use/quant-value
@@ -103,7 +103,7 @@ See `docs/DEFEATBETA_WSL_SETUP.md` for the full WSL setup guide.
 
 ### Full refresh (both stages)
 
-From Enkidu's REPL:
+From Gandalf's REPL:
 ```
 > /refresh
 ```

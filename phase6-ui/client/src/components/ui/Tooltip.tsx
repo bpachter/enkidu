@@ -1,5 +1,5 @@
 /**
- * Enkidu — UI primitive: Tooltip (Radix-based, themed)
+ * Gandalf — UI primitive: Tooltip (Radix-based, themed)
  */
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { cn } from '../../lib/cn'

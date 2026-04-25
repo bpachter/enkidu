@@ -6,7 +6,7 @@ investment questions about public companies.
 
 This tool does NOT re-implement the EDGAR pipeline — it queries the data
 that the QV pipeline already processed. Refreshing that data is a separate
-operation handled by refresh_data() (Enkidu's /refresh command).
+operation handled by refresh_data() (Gandalf's /refresh command).
 
 Data sources (all from quant-value/data/processed/ or QV_PATH/data/processed/):
     quantitative_value_portfolio.csv — screened stocks with full QV metrics
@@ -15,9 +15,9 @@ Data sources (all from quant-value/data/processed/ or QV_PATH/data/processed/):
 
 Path resolution (in priority order):
     1. QV_PATH env var in .env  → useful when data lives in a separate project
-    2. phase2-tool-use/quant-value/  → bundled copy inside the Enkidu repo (default)
+    2. phase2-tool-use/quant-value/  → bundled copy inside the Gandalf repo (default)
 
-Pattern (same as all Enkidu tools):
+Pattern (same as all Gandalf tools):
     1. Python fetches/filters real data
     2. Data injected into prompt as [EDGAR CONTEXT]
     3. LLM interprets and explains — it never touches the data directly
@@ -42,7 +42,7 @@ load_dotenv()
 
 # --- Path resolution ---
 
-# Bundled QV source tree lives alongside this file in the Enkidu repo:
+# Bundled QV source tree lives alongside this file in the Gandalf repo:
 #   phase2-tool-use/quant-value/   ← src/, config/, docs/ are in git
 #   phase2-tool-use/quant-value/data/  ← data is NOT in git (gitignored)
 #
@@ -62,7 +62,7 @@ def get_qv_path() -> Optional[Path]:
         p = Path(raw)
         if p.exists():
             return p
-    # Fall back to the bundled copy inside the Enkidu repo
+    # Fall back to the bundled copy inside the Gandalf repo
     if _BUNDLED_QV.exists():
         return _BUNDLED_QV
     return None
@@ -433,7 +433,7 @@ def format_dataframe(df: pd.DataFrame) -> str:
 
 def get_context(query: str) -> str:
     """
-    Main entry point for enkidu.py.
+    Main entry point for gandalf.py.
     Detects what the query is asking for and returns the appropriate context block.
     """
     qv = get_qv_path()
@@ -758,7 +758,7 @@ def refresh_data(force_redownload: bool = False, dry_run: bool = False) -> dict:
     return result
 
 
-# --- Trigger keywords for enkidu.py ---
+# --- Trigger keywords for gandalf.py ---
 
 TRIGGER_KEYWORDS = [
     "stock", "ticker", "piotroski", "f-score", "f score", "edgar",

@@ -44,7 +44,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   system:  'var(--green)',
 }
 
-export default function DemoPanel({ onAskEnkidu }: { onAskEnkidu: (q: string) => void }) {
+export default function DemoPanel({ onAskGandalf }: { onAskGandalf: (q: string) => void }) {
   const [demos,        setDemos]        = useState<Demo[]>([])
   const [activeDemo,   setActiveDemo]   = useState<Demo | null>(null)
   const [currentStep,  setCurrentStep]  = useState(0)
@@ -75,7 +75,7 @@ export default function DemoPanel({ onAskEnkidu }: { onAskEnkidu: (q: string) =>
 
   function runStep(step: DemoStep) {
     if (step.voice_only) return  // voice-only: user must use mic
-    onAskEnkidu(step.prompt)
+    onAskGandalf(step.prompt)
     setCurrentStep((n) => Math.min(n + 1, (activeDemo?.steps?.length ?? 1) - 1))
   }
 

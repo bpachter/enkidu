@@ -7,11 +7,11 @@
 
 > **Plain English:** Phase 2 made the model *use* tools. Phase 3 makes it *think in steps*. Instead of one prompt → one answer, the agent now writes itself a plan, picks a tool, looks at the result, decides what to do next, and only stops when it has the real answer. It also gets a phone interface — a Telegram bot — so you can talk to your home AI from anywhere.
 
-Move Enkidu from a prompt-injection tool pipeline to a true agentic system: one that can reason, plan, call tools, observe results, and self-correct — all triggered from an iPhone via Telegram.
+Move Gandalf from a prompt-injection tool pipeline to a true agentic system: one that can reason, plan, call tools, observe results, and self-correct — all triggered from an iPhone via Telegram.
 
-Enkidu can also be exposed inside Open WebUI through a local bridge and native Open WebUI function. See `OPEN_WEBUI_SETUP.md` in this folder.
+Gandalf can also be exposed inside Open WebUI through a local bridge and native Open WebUI function. See `OPEN_WEBUI_SETUP.md` in this folder.
 
-This phase was architected in collaboration with Gemma 4 (Enkidu itself), producing the strategic vision document that drives the build plan below.
+This phase was architected in collaboration with Gemma 4 (Gandalf itself), producing the strategic vision document that drives the build plan below.
 
 ---
 
@@ -32,7 +32,7 @@ iPhone (Telegram app)
     ↓
 Telegram Bot API (webhook or polling)
     ↓
-enkidu_agent.py — ReAct loop
+gandalf_agent.py — ReAct loop
     ↓
 Thought: what does the agent need to do?
     ↓
@@ -174,7 +174,7 @@ Hidden Markov Models to identify unobservable market regimes from observable sig
 
 **Hidden states inferred:** Expansion, Contraction, Crisis, Recovery
 
-**How it plugs into Enkidu:**
+**How it plugs into Gandalf:**
 - `regime_detector` tool called at session start
 - Current regime injected into system prompt: *"Current market regime: Contraction (78% confidence)"*
 - QV screening criteria adjust automatically: tighter quality threshold in Crisis, normal thresholds in Expansion
@@ -201,7 +201,7 @@ Implementation: `stable-baselines3` + custom gym environment wrapping the QV pip
 
 | Step | Component | Deliverable |
 |------|-----------|-------------|
-| 3.1 | Telegram bot skeleton | Messages route to Enkidu; responses come back |
+| 3.1 | Telegram bot skeleton | Messages route to Gandalf; responses come back |
 | 3.2 | ReAct loop (basic) | Agent calls one tool per query, returns answer |
 | 3.3 | Pydantic validation + self-correction | Agent retries on malformed output |
 | 3.4 | Python sandbox tool | Agent can execute pandas/numpy code |
@@ -218,7 +218,7 @@ Implementation: `stable-baselines3` + custom gym environment wrapping the QV pip
 phase3-agents/
 ├── README.md                    # This file
 ├── requirements.txt             # pyTelegramBotAPI, pydantic, anthropic, tavily-python, ddgs
-├── enkidu_agent.py              # ReAct loop + Gemma routing + web augmentation
+├── gandalf_agent.py              # ReAct loop + Gemma routing + web augmentation
 ├── telegram_interface.py        # Bot polling, TLS patch, lighting hooks, rate-limit safe handlers
 ├── tools/
 │   ├── registry.py              # Tool registration + dispatch (UTF-8 subprocess)
@@ -229,13 +229,13 @@ phase3-agents/
 
 ---
 
-## What Enkidu Will Be Able to Do After Phase 3
+## What Gandalf Will Be Able to Do After Phase 3
 
 ```
 You (iPhone Telegram): "Compare NUE and CLF on EV/EBIT and FCF yield, 
                         then calculate which is cheaper on a blended basis."
 
-Enkidu: [calls edgar_screener for NUE]
+Gandalf: [calls edgar_screener for NUE]
         [calls edgar_screener for CLF]
         [calls python_sandbox to compute blended metric]
         "NUE trades at 6.2x EV/EBIT and 8.1% FCF yield.

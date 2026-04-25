@@ -26,9 +26,9 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 _HERE = Path(__file__).parent
-_ENKIDU = _HERE.parent
-_TOOLS_PATH = _ENKIDU / "phase2-tool-use" / "tools"
-_QV_SRC = _ENKIDU / "phase2-tool-use" / "quant-value" / "src"
+_GANDALF = _HERE.parent
+_TOOLS_PATH = _GANDALF / "phase2-tool-use" / "tools"
+_QV_SRC = _GANDALF / "phase2-tool-use" / "quant-value" / "src"
 
 for p in [str(_TOOLS_PATH), str(_QV_SRC)]:
     if p not in sys.path:

@@ -7,11 +7,11 @@ import { fetchRegime, fetchPortfolio } from '../api'
 
 type View = 'table' | 'quality' | 'value'
 
-const BLUE   = '#4191f7'
-const CYAN   = '#38bdf8'
+const BLUE   = '#d4af37'
+const CYAN   = '#a8bcd8'
 const GREEN  = '#4ade80'
 const RED    = '#f87171'
-const DIM    = '#0f1724'
+const DIM    = '#0f0d0a'
 
 function scoreColor(s: number) {
   return s >= 70 ? GREEN : s >= 50 ? BLUE : RED
@@ -75,7 +75,7 @@ export default function MarketPanel() {
 
   return (
     <div className="panel" style={{ minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div className="panel-title">MARKET INTELLIGENCE</div>
+      <div className="panel-title">MARKET PALANTIR</div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
 
         {/* ── Regime ── */}
@@ -113,7 +113,7 @@ export default function MarketPanel() {
               </div>
             </>
           ) : (
-            <div className="dim" style={{ fontSize: 11 }}>loading regime...</div>
+            <div className="dim" style={{ fontSize: 11 }}>reading the market winds...</div>
           )}
         </div>
 
@@ -208,7 +208,7 @@ export default function MarketPanel() {
         )}
 
         {portfolio.length === 0 && (
-          <div className="dim" style={{ fontSize: 11, padding: '8px 12px' }}>no picks loaded</div>
+          <div className="dim" style={{ fontSize: 11, padding: '8px 12px' }}>no market watchlist loaded</div>
         )}
       </div>
     </div>

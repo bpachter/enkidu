@@ -1,5 +1,5 @@
 /**
- * Enkidu — UI primitive: Tabs (Radix-based, themed)
+ * Gandalf — UI primitive: Tabs (Radix-based, themed)
  */
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { cn } from '../../lib/cn'

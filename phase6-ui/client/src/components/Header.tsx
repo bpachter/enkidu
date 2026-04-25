@@ -27,10 +27,12 @@ export default function Header() {
 
   return (
     <header className="app-header panel">
-      <span className="header-logo">ENKIDU</span>
+      <span className="header-logo">GANDALF</span>
       <span className="hidden h-5 w-px bg-border md:inline-block" />
       <div className="hidden items-center gap-2 text-2xs uppercase tracking-[0.18em] text-muted md:flex">
         <span className="font-display font-semibold text-fg-strong">v8.0</span>
+        <span className="text-subtle">·</span>
+        <span>THE GREY</span>
         <span className="text-subtle">·</span>
         <span>RTX 4090</span>
         <span className="text-subtle">·</span>
@@ -80,7 +82,7 @@ export default function Header() {
         <StatusDot tone={busy ? 'amber' : 'green'} />
         <span className="font-display font-medium">
           <Activity className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
-          {busy ? 'PROCESSING' : 'ONLINE'}
+          {busy ? 'IN COUNCIL' : 'AT WATCH'}
         </span>
       </div>
     </header>

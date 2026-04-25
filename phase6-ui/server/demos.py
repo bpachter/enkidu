@@ -1,5 +1,5 @@
 """
-phase6-ui/server/demos.py — Prebuilt demo mode definitions for Enkidu.
+phase6-ui/server/demos.py — Prebuilt demo mode definitions for Gandalf.
 
 Each demo has:
   - id:           slug used in API routes
@@ -31,7 +31,7 @@ DEMOS: list[dict[str, Any]] = [
         ),
         "steps": [
             {
-                "label": "Introduce Enkidu",
+                "label": "Introduce Gandalf",
                 "prompt": "Who are you, what hardware are you running on, and why does local inference matter for privacy?",
                 "expected_keywords": ["RTX 4090", "local", "Ollama", "privacy"],
             },
@@ -59,7 +59,7 @@ DEMOS: list[dict[str, Any]] = [
         "category": "finance",
         "tags": ["stocks", "EDGAR", "valuation", "QV", "finance", "screener"],
         "intro": (
-            "Enkidu pulls real-time data from SEC EDGAR filings. "
+            "Gandalf pulls real-time data from SEC EDGAR filings. "
             "No data services subscription needed — just the public EDGAR API. "
             "This demo shows the quantitative value screener finding undervalued, high-quality stocks."
         ),
@@ -107,9 +107,9 @@ DEMOS: list[dict[str, Any]] = [
         "steps": [
             {
                 "label": "Say hello (voice)",
-                "prompt": "VOICE_PROMPT: Say: Hello Enkidu, are you there?",
+                "prompt": "VOICE_PROMPT: Say: Hello Gandalf, are you there?",
                 "voice_only": True,
-                "tip": "Click the microphone and say: 'Hello Enkidu, are you there?'",
+                "tip": "Click the microphone and say: 'Hello Gandalf, are you there?'",
             },
             {
                 "label": "Ask a financial question (voice)",
@@ -120,7 +120,7 @@ DEMOS: list[dict[str, Any]] = [
             {
                 "label": "Test TTS audio quality",
                 "prompt": "Please describe yourself in exactly three sentences, with enthusiasm — this is a TTS quality test.",
-                "expected_keywords": ["Enkidu", "RTX", "local"],
+                "expected_keywords": ["Gandalf", "RTX", "local"],
             },
             {
                 "label": "Voice round-trip latency",
@@ -136,7 +136,7 @@ DEMOS: list[dict[str, Any]] = [
         "category": "system",
         "tags": ["gpu", "cpu", "ram", "temperature", "monitoring", "hardware"],
         "intro": (
-            "Watch Enkidu's live hardware panel while asking about your system. "
+            "Watch Gandalf's live hardware panel while asking about your system. "
             "The GPU stats WebSocket streams at 2 Hz — every metric is live."
         ),
         "steps": [

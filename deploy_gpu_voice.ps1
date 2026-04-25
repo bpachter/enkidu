@@ -3,13 +3,14 @@
 
 param(
     [string]$GpuHost = "gpu.bpachter.dev",
-    [string]$RemotePath = "/home/enkidu/phase6-ui/server",
-    [string]$User = "enkidu"
+    [string]$RemotePath = "/home/gandalf/phase6-ui/server",
+    [string]$User = "gandalf",
+    [string]$ServiceName = "gandalf"
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Enkidu Voice Module GPU Deployment ===" -ForegroundColor Cyan
+Write-Host "=== Gandalf Voice Module GPU Deployment ===" -ForegroundColor Cyan
 Write-Host ""
 
 $localDir = "phase6-ui/server"
@@ -66,9 +67,9 @@ if ($failed.Count -eq 0) {
     Write-Host "  1. SSH into GPU machine:"
     Write-Host "     ssh $User@$GpuHost"
     Write-Host "  2. Restart the service:"
-    Write-Host "     systemctl restart enkidu"
+    Write-Host "     systemctl restart $ServiceName"
     Write-Host "  3. Check status:"
-    Write-Host "     systemctl status enkidu"
+    Write-Host "     systemctl status $ServiceName"
 } else {
     Write-Host "[FAILED] Could not sync $($failed.Count) file(s):" -ForegroundColor Red
     $failed | ForEach-Object { Write-Host "    - $_" -ForegroundColor Red }

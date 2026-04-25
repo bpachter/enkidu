@@ -54,10 +54,10 @@ export default function App() {
     <div className="app-grid">
       <Header />
 
-      {/* Avalon launch button — pinned to header, themed cyan operator action */}
+      {/* Avalon launch button — pinned to header */}
       <button
         onClick={() => setMode('avalon')}
-        title="Open Avalon — datacenter siting console"
+        title="Open Avalon, the realm-map for datacenter siting"
         className="
           group fixed top-2 right-[230px] z-50
           inline-flex items-center gap-2 rounded-sm border border-cyan-dim bg-cyan-soft
@@ -74,7 +74,7 @@ export default function App() {
       {/* Dev panel launch button */}
       <button
         onClick={() => setMode('dev')}
-        title="Open Enkidu Dev — AI-driven code orchestration"
+        title="Open Gandalf Forge — code orchestration and review"
         className="
           group fixed top-2 right-[320px] z-50
           inline-flex items-center gap-2 rounded-sm border border-violet-800/50 bg-violet-900/20
@@ -123,7 +123,7 @@ export default function App() {
             >
               {leftTab === 'params' && <ModelParamsPanel />}
               {leftTab === 'docs'   && (
-                <DocsPanel onAskEnkidu={(q) => setPendingChatInput(q)} />
+                <DocsPanel onAskGandalf={(q) => setPendingChatInput(q)} />
               )}
             </motion.div>
           </AnimatePresence>

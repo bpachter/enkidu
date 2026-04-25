@@ -1,5 +1,5 @@
 @echo off
-:: Enkidu guided setup script for Windows
+:: Gandalf guided setup script for Windows
 :: Run this ONCE before first launch on a fresh machine.
 :: Usage: scripts\bootstrap.bat [--check] [--yes] [--skip-ollama]
 
@@ -10,7 +10,7 @@ cd /d "%~dp0.."
 
 echo.
 echo   =============================================
-echo    Enkidu Bootstrap — First-Time Setup
+echo    Gandalf Bootstrap — First-Time Setup
 echo   =============================================
 echo.
 

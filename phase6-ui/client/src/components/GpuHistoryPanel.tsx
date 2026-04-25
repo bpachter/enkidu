@@ -11,12 +11,12 @@ import { useStore } from '../store'
 import type { GpuHistoryPoint } from '../store'
 
 const C = {
-  gpu:      { stroke: '#38bdf8', fill: '#38bdf810' },
-  vram:     { stroke: '#4191f7', fill: '#4191f710' },
+  gpu:      { stroke: '#a8bcd8', fill: '#a8bcd810' },
+  vram:     { stroke: '#d4af37', fill: '#d4af3710' },
   temp:     { stroke: '#f59e0b', fill: '#f59e0b10' },
   power:    { stroke: '#f87171', fill: '#f8717110' },
-  clock_sm: { stroke: '#818cf8', fill: '#818cf810' },
-  clock_mem:{ stroke: '#60a5fa', fill: '#60a5fa10' },
+  clock_sm: { stroke: '#c8b4e0', fill: '#c8b4e010' },
+  clock_mem:{ stroke: '#e8d080', fill: '#e8d08010' },
   cpu:      { stroke: '#94a3b8', fill: '#94a3b810' },
 }
 

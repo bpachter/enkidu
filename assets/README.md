@@ -1,4 +1,4 @@
-# Enkidu — Visual Assets
+# Gandalf — Visual Assets
 
 Drop GIFs and short clips here. Filenames are referenced from the project READMEs and `LINKEDIN_POST.md`.
 

@@ -2,7 +2,7 @@
  * DocsPanel.tsx — Searchable CUDA / RTX 4090 / Gemma4 reference panel.
  * Loaded from /api/docs (served by cuda_docs.py).
  * Category tabs filter entries; search filters by title/summary/tags.
- * "Ask Enkidu" injects a query into the chat input.
+ * "Seek Counsel" injects a query into the chat input.
  */
 
 import { useEffect, useState, useRef } from 'react'
@@ -33,8 +33,8 @@ const CAT_COLORS: Record<string, string> = {
   rtx4090:    'var(--cyan)',
   memory:     'var(--amber)',
   execution:  'var(--green)',
-  performance:'#818cf8',
-  gemma4:     '#60a5fa',
+  performance:'#c8b4e0',
+  gemma4:     '#e8d080',
   inference:  'var(--amber)',
 }
 
@@ -42,10 +42,10 @@ const CAT_COLORS: Record<string, string> = {
 
 interface CardProps {
   entry: DocEntry
-  onAskEnkidu: (query: string) => void
+  onAskGandalf: (query: string) => void
 }
 
-function DocCard({ entry, onAskEnkidu }: CardProps) {
+function DocCard({ entry, onAskGandalf }: CardProps) {
   const [expanded, setExpanded] = useState(false)
   const accentColor = CAT_COLORS[entry.category] ?? 'var(--cyan)'
 
@@ -100,7 +100,7 @@ function DocCard({ entry, onAskEnkidu }: CardProps) {
             <pre className="doc-example">{entry.example}</pre>
           )}
 
-          {/* Tags + Ask Enkidu */}
+          {/* Tags + Ask Gandalf */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {entry.tags.slice(0, 6).map((t) => (
@@ -111,10 +111,10 @@ function DocCard({ entry, onAskEnkidu }: CardProps) {
               className="doc-ask-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                onAskEnkidu(`Explain ${entry.title} in the context of my RTX 4090 setup`)
+                onAskGandalf(`Explain ${entry.title} in the context of my RTX 4090 setup`)
               }}
             >
-              ASK ENKIDU ▸
+              SEEK COUNSEL ▸
             </button>
           </div>
         </div>
@@ -126,10 +126,10 @@ function DocCard({ entry, onAskEnkidu }: CardProps) {
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 interface DocsPanelProps {
-  onAskEnkidu: (query: string) => void
+  onAskGandalf: (query: string) => void
 }
 
-export default function DocsPanel({ onAskEnkidu }: DocsPanelProps) {
+export default function DocsPanel({ onAskGandalf }: DocsPanelProps) {
   const [docs, setDocs]         = useState<DocEntry[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [activeTab, setActiveTab]   = useState('all')
@@ -166,7 +166,7 @@ export default function DocsPanel({ onAskEnkidu }: DocsPanelProps) {
 
   return (
     <div className="panel" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div className="panel-title">CUDA REFERENCE</div>
+      <div className="panel-title">LORE ARCHIVE</div>
 
       {/* Search bar */}
       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -174,7 +174,7 @@ export default function DocsPanel({ onAskEnkidu }: DocsPanelProps) {
           ref={inputRef}
           className="doc-search"
           type="text"
-          placeholder="search topics, specs, tags…"
+          placeholder="seek topics, specs, runes…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -198,7 +198,7 @@ export default function DocsPanel({ onAskEnkidu }: DocsPanelProps) {
       <div className="doc-list">
         {loading && (
           <div style={{ padding: 16, color: 'var(--white-dim)', fontSize: 11 }}>
-            ◈ LOADING REFERENCE DATA…
+            ◈ SUMMONING REFERENCE LORE…
           </div>
         )}
         {error && (
@@ -206,11 +206,11 @@ export default function DocsPanel({ onAskEnkidu }: DocsPanelProps) {
         )}
         {!loading && !error && filtered.length === 0 && (
           <div style={{ padding: 16, color: 'var(--white-dim)', fontSize: 11 }}>
-            No entries match "{query}"
+            No lore matches "{query}"
           </div>
         )}
         {filtered.map((entry) => (
-          <DocCard key={entry.id} entry={entry} onAskEnkidu={onAskEnkidu} />
+          <DocCard key={entry.id} entry={entry} onAskGandalf={onAskGandalf} />
         ))}
       </div>
     </div>

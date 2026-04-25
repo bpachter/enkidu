@@ -1,5 +1,5 @@
 """
-Enkidu Gateway — Railway-hosted reverse proxy to home GPU via Cloudflare Tunnel.
+Gandalf Gateway — Railway-hosted reverse proxy to home GPU via Cloudflare Tunnel.
 
 Set GPU_URL env var to your Cloudflare tunnel base URL, e.g.:
   GPU_URL=https://your-tunnel-name.trycloudflare.com
@@ -22,14 +22,14 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 GPU_URL = os.environ.get("GPU_URL", "").strip().rstrip("/")
 VOICE_GPU_URL = os.environ.get("VOICE_GPU_URL", "").strip().rstrip("/")
-ENKIDU_UI_URL = os.environ.get("ENKIDU_UI_URL", "").strip()
+GANDALF_UI_URL = os.environ.get("GANDALF_UI_URL", "").strip()
 VOICE_UPSTREAM_COOLDOWN_SEC = int(os.environ.get("VOICE_UPSTREAM_COOLDOWN_SEC", "20"))
-DEV_PANEL_PASSWORD = os.environ.get("ENKIDU_DEV_PASSWORD", "").strip() or "antifragile"
+DEV_PANEL_PASSWORD = os.environ.get("GANDALF_DEV_PASSWORD", "").strip() or "antifragile"
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("enkidu.gateway")
+logger = logging.getLogger("gandalf.gateway")
 
-app = FastAPI(title="Enkidu Gateway", version="1.0.0")
+app = FastAPI(title="Gandalf Gateway", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,14 +119,14 @@ def _generic_fallback_api(path: str) -> tuple[dict, int]:
 @app.get("/")
 def root():
     """Open a browser-friendly landing target for the gateway base URL."""
-    if ENKIDU_UI_URL:
-        return RedirectResponse(url=ENKIDU_UI_URL, status_code=307)
+    if GANDALF_UI_URL:
+        return RedirectResponse(url=GANDALF_UI_URL, status_code=307)
     return JSONResponse(
         {
             "ok": True,
-            "service": "Enkidu Gateway",
+            "service": "Gandalf Gateway",
             "health": "/api/health",
-            "note": "Set ENKIDU_UI_URL to redirect browser traffic to your UI.",
+            "note": "Set GANDALF_UI_URL to redirect browser traffic to your UI.",
         }
     )
 

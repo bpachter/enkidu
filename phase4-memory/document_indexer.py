@@ -1,8 +1,8 @@
 """
-document_indexer.py — Document and codebase RAG for Enkidu (Phase 4)
+document_indexer.py — Document and codebase RAG for Gandalf (Phase 4)
 
 Indexes local files into ChromaDB so the agent can retrieve relevant
-context from your own documents — JOURNEY.md, research notes, the Enkidu
+context from your own documents — JOURNEY.md, research notes, the Gandalf
 codebase itself, or any other text files you point it at.
 
 Inspired by Matthew Busel's approach: index your entire codebase (or knowledge
@@ -13,8 +13,8 @@ Usage:
     # Index documents once (or re-run to refresh):
     from document_indexer import index_path, search_docs
 
-    index_path("C:/Users/benpa/OneDrive/Desktop/Enkidu")  # whole repo
-    index_path("C:/Users/benpa/OneDrive/Desktop/Enkidu/JOURNEY.md")  # single file
+    index_path("C:/path/to/gandalf")  # whole repo
+    index_path("C:/path/to/gandalf/JOURNEY.md")  # single file
 
     # Retrieve relevant chunks at query time:
     results = search_docs("Why did DUK fail the QV screen?")

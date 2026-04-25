@@ -1,6 +1,6 @@
 /**
- * Enkidu — Professional Blue design tokens
- * Deep navy base, electric cobalt primary, sky blue secondary.
+ * Gandalf — Ancient Gold & Mithril Silver design tokens
+ * Dark stone base, antique gold primary, mithril silver secondary.
  */
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -9,20 +9,20 @@ export default {
     extend: {
       colors: {
         // Surfaces
-        bg:        '#0c0f18',
-        surface:   '#111928',
-        elevated:  '#1a2436',
-        sunken:    '#080c17',
-        border:    '#1e2a40',
-        'border-strong': '#2d3d56',
+        bg:        '#0d0b09',
+        surface:   '#12100d',
+        elevated:  '#1c1914',
+        sunken:    '#080706',
+        border:    '#241f16',
+        'border-strong': '#362e20',
         // Foreground
-        fg:        '#c8d8f0',
-        muted:     '#64748b',
-        subtle:    '#334155',
-        // Primary cobalt blue (replaces amber)
-        amber:     { DEFAULT: '#4191f7', soft: '#4191f712', dim: '#1e3a6e', glow: '#4191f720' },
-        // Sky blue (replaces cyan)
-        cyan:      { DEFAULT: '#38bdf8', soft: '#38bdf810', dim: '#164e6a', glow: '#38bdf820' },
+        fg:        '#d4cfc0',
+        muted:     '#7a7060',
+        subtle:    '#3d3628',
+        // Primary antique gold
+        amber:     { DEFAULT: '#d4af37', soft: '#d4af3712', dim: '#3d2c08', glow: '#d4af3720' },
+        // Mithril silver
+        cyan:      { DEFAULT: '#a8bcd8', soft: '#a8bcd810', dim: '#1e2a3d', glow: '#a8bcd820' },
         // Success green
         emerald:   { DEFAULT: '#4ade80', soft: '#4ade8012', dim: '#166534' },
         // Error red
@@ -55,8 +55,8 @@ export default {
         DEFAULT:    '0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4)',
         md:         '0 4px 16px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4)',
         lg:         '0 8px 28px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4)',
-        panel:      '0 0 0 1px #1e2a40',
-        'panel-hi': '0 0 0 1px #2d3d56, 0 4px 16px -4px rgba(65,145,247,0.18)',
+        panel:      '0 0 0 1px #241f16',
+        'panel-hi': '0 0 0 1px #362e20, 0 4px 16px -4px rgba(212,175,55,0.18)',
       },
       borderRadius: {
         none: '0',

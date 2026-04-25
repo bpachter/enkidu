@@ -118,12 +118,12 @@ export default function ModelParamsPanel() {
 
   return (
     <div className="panel" style={{ minHeight: 0, overflow: 'auto' }}>
-      <div className="panel-title">MODEL PARAMS</div>
+      <div className="panel-title">WILL & TEMPER</div>
       <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 
         <div style={{ fontSize: 9, color: 'var(--white-dim)', marginBottom: 4, lineHeight: 1.5 }}>
-          Hover any row to see what each parameter does.
-          Parameters are forwarded directly to Gemma 4 via Ollama.
+          Each slider shapes Gandalf&apos;s tone, caution, and memory span.
+          Values are forwarded directly to Gemma 4 through Ollama.
         </div>
 
         {keys.map((k) => (
@@ -140,7 +140,7 @@ export default function ModelParamsPanel() {
           onClick={handleSave}
           style={{ marginTop: 8 }}
         >
-          {saved ? 'SAVED ✓' : 'SAVE PARAMS'}
+          {saved ? 'SEALED ✓' : 'SEAL SETTINGS'}
         </button>
       </div>
     </div>

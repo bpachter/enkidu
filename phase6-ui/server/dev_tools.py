@@ -1,10 +1,10 @@
 """
-dev_tools.py — Enkidu Dev Orchestration Engine
+dev_tools.py — Gandalf Dev Orchestration Engine
 
 Manages a queue of AI-driven development tasks. Each task is delegated to
 Claude (via the Anthropic SDK), which acts as a code-writing subagent.
 Progress is streamed to connected WebSocket clients in real time, and
-Enkidu narrates progress to the user in the chat panel in parallel.
+Gandalf narrates progress to the user in the chat panel in parallel.
 
 Task lifecycle:
     queued → running → done | failed | needs_review
@@ -34,7 +34,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Optional
 
-logger = logging.getLogger("enkidu.dev")
+logger = logging.getLogger("gandalf.dev")
 
 # ---------------------------------------------------------------------------
 # Project registry — add new apps here as they are created
@@ -43,7 +43,7 @@ logger = logging.getLogger("enkidu.dev")
 _DESKTOP = Path("C:/Users/benpa/OneDrive/Desktop")
 
 PROJECT_ROOTS: dict[str, Path] = {
-    "enkidu":   _DESKTOP / "Enkidu",
+    "gandalf":   _DESKTOP / "Gandalf",
     "avalon":   _DESKTOP / "avalon",
     "orator":   _DESKTOP / "orator",       # will exist when built
     "longinus": _DESKTOP / "longinus",
@@ -445,10 +445,10 @@ def _build_file_context(project: str, context_files: list[str]) -> str:
 
 
 _DEV_SYSTEM_PROMPT = """\
-You are a senior software engineer working inside the Enkidu development system.
-Enkidu is a local AI assistant with an RTX 4090. You are given a development task
+You are a senior software engineer working inside the Gandalf development system.
+Gandalf is a local AI assistant with an RTX 4090. You are given a development task
 for one of several applications in the portfolio (Orator, Avalon, Longinus, Zeus,
-Babylon, Aristotle, Enkidu itself).
+Babylon, Aristotle, Gandalf itself).
 
 Your responsibilities:
 1. Understand the task and the existing code context provided.

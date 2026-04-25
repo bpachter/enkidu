@@ -1,4 +1,4 @@
-name: Enkidu Benchmark CI
+name: Gandalf Benchmark CI
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
       - name: Create stub .env
         run: |
           cp .env.example .env
-          sed -i 's|ANTHROPIC_API_KEY=sk-ant-...|ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY || "sk-ant-stub" }}|' .env
+          sed -i 's|ANTHROPIC_API_KEY=sk-ant-...|ANTHROPIC_API_KEY=sk-ant-stub|' .env
 
       - name: Run health unit tests
         run: python tests/test_health.py
@@ -67,7 +67,7 @@ jobs:
         run: |
           cp .env.example .env
           echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> .env
-          echo "ENKIDU_FORCE_LOCAL_ONLY=0" >> .env
+          echo "GANDALF_FORCE_LOCAL_ONLY=0" >> .env
 
       - name: Run benchmark (identity + routing + safety categories)
         run: |

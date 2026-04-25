@@ -1,13 +1,13 @@
 @echo off
 :: ============================================================
 :: install_startup_lighting.bat
-:: Registers Enkidu idle lighting as a Windows logon task.
+:: Registers Gandalf idle lighting as a Windows logon task.
 :: RIGHT-CLICK -> "Run as administrator" to install.
 :: ============================================================
 
-set TASK_NAME=Enkidu Startup Lighting
+set TASK_NAME=Gandalf Startup Lighting
 set PYTHON=C:\Python312\pythonw.exe
-set SCRIPT=C:\Users\benpa\OneDrive\Desktop\Enkidu\startup_lighting.py
+set SCRIPT=%~dp0startup_lighting.py
 
 echo.
 echo Registering Task: "%TASK_NAME%"
@@ -27,10 +27,10 @@ schtasks /Create ^
 
 if %ERRORLEVEL% == 0 (
     echo.
-    echo SUCCESS!  Enkidu lighting will auto-start 15 seconds after logon.
+    echo SUCCESS!  Gandalf lighting will auto-start 15 seconds after logon.
     echo.
     echo To run it right now without rebooting:
-    echo   schtasks /Run /TN "Enkidu Startup Lighting"
+    echo   schtasks /Run /TN "Gandalf Startup Lighting"
 ) else (
     echo.
     echo FAILED.  Make sure you right-clicked and chose "Run as administrator".

@@ -5,39 +5,39 @@
 @tailwind utilities;
 
 /* ============================================================
-   ENKIDU — Professional Blue Design System
-   Deep navy base. Electric cobalt accent. Material elevation.
+   GANDALF — Ancient Gold & Mithril Silver
+   Dark stone base. Antique gold accent. Mithril silver secondary.
    ============================================================ */
 
 :root {
   /* ── Surfaces ─────────────────────────────────────────────── */
-  --bg:            #0c0f18;
-  --bg-panel:      #111928;
-  --bg-elevated:   #1a2436;
-  --bg-input:      #0f1724;
-  --bg-sunken:     #080c17;
+  --bg:            #0d0b09;
+  --bg-panel:      #12100d;
+  --bg-elevated:   #1c1914;
+  --bg-input:      #0f0d0a;
+  --bg-sunken:     #080706;
 
   /* ── Borders ──────────────────────────────────────────────── */
-  --border:        #1e2a40;
-  --border-strong: #2d3d56;
+  --border:        #241f16;
+  --border-strong: #362e20;
 
   /* ── Foreground / text ────────────────────────────────────── */
-  --fg:            #c8d8f0;
-  --fg-strong:     #e2e8f0;
-  --white-dim:     #64748b;
-  --subtle:        #334155;
+  --fg:            #d4cfc0;
+  --fg-strong:     #ece8de;
+  --white-dim:     #7a7060;
+  --subtle:        #3d3628;
 
-  /* ── Primary cobalt blue (was amber) ─────────────────────── */
-  --amber:         #4191f7;
-  --amber-dim:     #1e3a6e;
-  --amber-glow:    #4191f720;
-  --amber-soft:    #4191f712;
+  /* ── Primary antique gold ─────────────────────────────────── */
+  --amber:         #d4af37;
+  --amber-dim:     #3d2c08;
+  --amber-glow:    #d4af3720;
+  --amber-soft:    #d4af3712;
 
-  /* ── Sky blue (was cyan) ──────────────────────────────────── */
-  --cyan:          #38bdf8;
-  --cyan-dim:      #164e6a;
-  --cyan-glow:     #38bdf820;
-  --cyan-soft:     #38bdf810;
+  /* ── Mithril silver ───────────────────────────────────────── */
+  --cyan:          #a8bcd8;
+  --cyan-dim:      #1e2a3d;
+  --cyan-glow:     #a8bcd820;
+  --cyan-soft:     #a8bcd810;
 
   /* ── Success green ────────────────────────────────────────── */
   --green:         #4ade80;
@@ -95,7 +95,7 @@ html, body, #root {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Subtle ambient blue gradient (no grid, no scanlines) ──── */
+/* ── Subtle ambient gold gradient ──────────────────────────── */
 body::before {
   content: '';
   position: fixed;
@@ -103,8 +103,8 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 15% 0%,  rgba(65,145,247,0.06), transparent 65%),
-    radial-gradient(ellipse 60% 45% at 85% 100%, rgba(56,189,248,0.04), transparent 60%);
+    radial-gradient(ellipse 80% 50% at 15% 0%,  rgba(212,175,55,0.05), transparent 65%),
+    radial-gradient(ellipse 60% 45% at 85% 100%, rgba(168,188,216,0.04), transparent 60%);
 }
 
 /* ── Selection / focus ─────────────────────────────────────── */
@@ -178,7 +178,7 @@ body::before {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(65,145,247,0.3), rgba(56,189,248,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(212,175,55,0.3), rgba(168,188,216,0.2), transparent);
 }
 .hw-cell {
   flex: 1;
@@ -192,7 +192,7 @@ body::before {
   position: relative;
   transition: background var(--transition);
 }
-.hw-cell:hover { background: rgba(65,145,247,0.04); }
+.hw-cell:hover { background: rgba(212,175,55,0.04); }
 .hw-cell:last-child { border-right: none; }
 .hw-cell-header {
   display: flex; justify-content: space-between; align-items: flex-start;
@@ -263,7 +263,7 @@ body::before {
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--cyan);
-  box-shadow: 0 0 0 2px rgba(56,189,248,0.2);
+  box-shadow: 0 0 0 2px rgba(168,188,216,0.2);
   flex-shrink: 0;
 }
 .panel-body { flex: 1; overflow: auto; padding: 12px 14px; }
@@ -284,7 +284,7 @@ body::before {
   position: absolute;
   left: 0; right: 0; bottom: -1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent 5%, rgba(65,145,247,0.35) 35%, rgba(56,189,248,0.25) 65%, transparent 95%);
+  background: linear-gradient(90deg, transparent 5%, rgba(212,175,55,0.4) 35%, rgba(168,188,216,0.25) 65%, transparent 95%);
 }
 .header-logo {
   font-family: var(--font-display);
@@ -292,7 +292,7 @@ body::before {
   font-size: 20px;
   letter-spacing: 0.32em;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #60a5fa, #4191f7 60%, #38bdf8);
+  background: linear-gradient(135deg, #f0e060, #d4af37 60%, #c09020);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -323,7 +323,7 @@ body::before {
 }
 .status-dot.busy {
   background: var(--amber);
-  box-shadow: 0 0 0 3px rgba(65,145,247,0.2);
+  box-shadow: 0 0 0 3px rgba(212,175,55,0.2);
   animation: pulse-fast 0.7s ease-in-out infinite;
 }
 @keyframes pulse      { 0%,100%{opacity:1} 50%{opacity:0.45} }
@@ -360,7 +360,7 @@ body::before {
 }
 .msg.user .msg-bubble {
   border-color: var(--cyan-dim);
-  background: linear-gradient(180deg, rgba(56,189,248,0.08), rgba(56,189,248,0.03));
+  background: linear-gradient(180deg, rgba(168,188,216,0.08), rgba(168,188,216,0.03));
   color: var(--fg-strong);
 }
 .msg.bot .msg-bubble {
@@ -422,7 +422,7 @@ body::before {
   caret-color: var(--amber);
 }
 .chat-input::placeholder { color: var(--subtle); }
-.chat-input:focus { background: rgba(65,145,247,0.025); }
+.chat-input:focus { background: rgba(212,175,55,0.025); }
 .chat-send {
   background: transparent;
   border: none;
@@ -527,7 +527,7 @@ body::before {
 .param-number:focus {
   outline: none;
   border-color: var(--amber);
-  background: rgba(65,145,247,0.05);
+  background: rgba(212,175,55,0.05);
   box-shadow: 0 0 0 3px var(--amber-soft);
 }
 
@@ -547,8 +547,8 @@ body::before {
   box-shadow: var(--shadow-sm);
 }
 .regime-badge.expansion   { border-color: var(--green);  color: var(--green);  background: rgba(74,222,128,0.06); }
-.regime-badge.recovery    { border-color: var(--cyan);   color: var(--cyan);   background: rgba(56,189,248,0.06); }
-.regime-badge.contraction { border-color: var(--amber);  color: var(--amber);  background: rgba(65,145,247,0.06); }
+.regime-badge.recovery    { border-color: var(--cyan);   color: var(--cyan);   background: rgba(168,188,216,0.06); }
+.regime-badge.contraction { border-color: var(--amber);  color: var(--amber);  background: rgba(212,175,55,0.06); }
 .regime-badge.crisis      { border-color: var(--red);    color: var(--red);    background: rgba(248,113,113,0.06); }
 .regime-badge.unknown     { border-color: var(--border-strong); color: var(--white-dim); background: var(--bg-elevated); }
 
@@ -635,7 +635,7 @@ body::before {
 
 /* ── Save button ──────────────────────────────────────────── */
 .save-btn {
-  background: rgba(65,145,247,0.06);
+  background: rgba(212,175,55,0.06);
   border: 1px solid var(--border-strong);
   color: var(--amber);
   font-family: var(--font-display);
@@ -651,7 +651,7 @@ body::before {
   box-shadow: var(--shadow-sm);
 }
 .save-btn:hover {
-  background: rgba(65,145,247,0.12);
+  background: rgba(212,175,55,0.12);
   border-color: var(--amber);
   box-shadow: var(--shadow);
 }
@@ -736,7 +736,7 @@ body::before {
 .doc-search::placeholder { color: var(--subtle); }
 .doc-search:focus {
   border-color: var(--amber);
-  background: rgba(65,145,247,0.04);
+  background: rgba(212,175,55,0.04);
   box-shadow: 0 0 0 3px var(--amber-soft);
 }
 
@@ -852,7 +852,7 @@ body::before {
   border-radius: var(--r-sm);
 }
 .doc-ask-btn {
-  background: rgba(56,189,248,0.05);
+  background: rgba(168,188,216,0.05);
   border: 1px solid var(--cyan-dim);
   color: var(--cyan);
   font-family: var(--font-display);
