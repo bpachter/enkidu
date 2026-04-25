@@ -14,7 +14,7 @@ Start-Sleep -Seconds 4
 
 $serverPath = Join-Path $root "phase6-ui\server"
 $venvPython = Join-Path $root ".venv\Scripts\python.exe"
-$pythonExe = "python"
+$pythonExe = "C:\Python312\python.exe"
 if (Test-Path $venvPython) {
 	& $venvPython -c "import uvicorn" 2>$null
 	if ($LASTEXITCODE -eq 0) {
