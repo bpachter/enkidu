@@ -381,3 +381,6 @@ INFO:     54.241.186.112:0 - "WebSocket /ws/chat" [accepted]
 INFO:     connection open
 INFO:     54.241.186.112:0 - "WebSocket /ws/gpu" [accepted]
 INFO:     connection open
+2026-04-25 01:23:31,645 ERROR mithrandir.voice: F5-TTS timed out for profile: C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav
+2026-04-25 01:23:39,087 INFO mithrandir.voice: Kokoro: 'The name Mithrandir is Sindarin for the …' \u2192 517,484 bytes (voice=bm_george)
+2026-04-25 01:23:39,088 INFO mithrandir.voice: TTS stream backend=Kokoro profile='mithrandir' seq=0
