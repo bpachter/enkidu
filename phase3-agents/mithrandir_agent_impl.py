@@ -227,6 +227,19 @@ def _is_self_reference(query: str) -> bool:
     return any(p in lower for p in _SELF_REF_PATTERNS)
 
 
+def _load_soul() -> str:
+    """Load SOUL.md from the project root. Returns empty string if missing."""
+    try:
+        soul_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "SOUL.md"))
+        with open(soul_path, encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+_SOUL = _load_soul()
+
+
 def _build_system_prompt(user_message: str = "", response_mode: str = "visual") -> str:
     try:
         regime_info = get_regime()
@@ -284,12 +297,13 @@ def _build_system_prompt(user_message: str = "", response_mode: str = "visual") 
 
     extra = "\n\n".join(filter(None, [identity_block, last_exchange_block, memory_block, speech_guidance, style_block]))
 
-    return _SYSTEM_TEMPLATE.format(
+    operational = _SYSTEM_TEMPLATE.format(
         tools=tool_descriptions(),
         max_iter=MAX_ITERATIONS,
         regime=regime_block,
         memory=extra,
     )
+    return f"{_SOUL}\n\n---\n\n{operational}" if _SOUL else operational
 
 
 # ---------------------------------------------------------------------------
@@ -588,7 +602,8 @@ def _build_local_system_prompt(user_message: str = "", web_context: str | None =
             "Prefer prose over lists, and explain symbols in words instead of reading punctuation literally."
         )
 
-    return "\n".join(parts)
+    operational = "\n".join(parts)
+    return f"{_SOUL}\n\n---\n\n{operational}" if _SOUL else operational
 
 
 def _run_local(query: str, on_step: Optional[Callable[[str], None]] = None, save_memory: bool = True, prior_messages: Optional[list] = None, on_token: Optional[Callable[[str], None]] = None, ollama_options: Optional[dict] = None, response_mode: str = "visual") -> Optional[str]:
