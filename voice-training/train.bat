@@ -5,7 +5,7 @@ REM Run after setup_styletts2.bat and prepare_training_data.py
 REM ============================================================
 
 set HERE=%~dp0
-set VENV_PYTHON=%HERE%..\.venv\Scripts\python.exe
+set VENV_PYTHON=C:\Python312\python.exe
 set REPO=%HERE%styletts2_repo
 
 echo.
