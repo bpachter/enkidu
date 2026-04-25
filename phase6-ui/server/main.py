@@ -820,9 +820,12 @@ async def _stream_processing_prelude(ws: WebSocket, voice, voice_profile: Option
         return
 
     prelude_text = _pick_processing_prelude()
+    logger.info(f"TTS prelude starting profile={voice_profile!r} text={prelude_text!r}")
 
     async def _send_prelude_chunk(audio_bytes: bytes, fmt: str, seq: int) -> None:
         try:
+            if seq == 0:
+                logger.info(f"TTS prelude first chunk profile={voice_profile!r} format={fmt}")
             await ws.send_json(
                 {
                     "type": "tts_prelude_chunk",
@@ -843,6 +846,7 @@ async def _stream_processing_prelude(ws: WebSocket, voice, voice_profile: Option
         ),
         timeout=12.0,
     )
+    logger.info(f"TTS prelude finished profile={voice_profile!r}")
 
 
 async def _play_processing_prelude(ws: WebSocket, voice, voice_profile: Optional[str]) -> None:
