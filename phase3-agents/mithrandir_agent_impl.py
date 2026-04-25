@@ -229,11 +229,21 @@ def _is_self_reference(query: str) -> bool:
 
 def _load_soul() -> str:
     """Load SOUL.md from the project root. Returns empty string if missing."""
+    import hashlib
+    import logging
+    _log = logging.getLogger("mithrandir.soul")
     try:
         soul_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "SOUL.md"))
         with open(soul_path, encoding="utf-8") as f:
-            return f.read().strip()
-    except Exception:
+            content = f.read().strip()
+        digest = hashlib.sha256(content.encode()).hexdigest()[:12]
+        _log.info(f"SOUL.md loaded — {len(content)} chars, sha256:{digest}")
+        return content
+    except FileNotFoundError:
+        _log.critical("SOUL.md NOT FOUND — Mithrandir is running without its foundational identity document")
+        return ""
+    except Exception as e:
+        _log.critical(f"SOUL.md failed to load: {e}")
         return ""
 
 
