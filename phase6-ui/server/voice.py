@@ -231,7 +231,7 @@ def _fix_proper_nouns(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _KOKORO_VOICE    = os.environ.get("KOKORO_VOICE",     "bm_george")
-_KOKORO_SPEED    = float(os.environ.get("KOKORO_SPEED",    "0.90"))  # deliberate, authoritative pace
+_KOKORO_SPEED    = float(os.environ.get("KOKORO_SPEED",    "0.95"))  # deliberate, authoritative pace
 _KOKORO_LANG     = os.environ.get("KOKORO_LANG",      "b")       # 'b'=British (bm_george requires this)
 _KOKORO_SR       = 24000
 
