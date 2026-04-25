@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-$tunnelName = if ($env:MITHRANDIR_CLOUDFLARE_TUNNEL) { $env:MITHRANDIR_CLOUDFLARE_TUNNEL } else { 'enkidu' }
+$tunnelName = if ($env:MITHRANDIR_CLOUDFLARE_TUNNEL) { $env:MITHRANDIR_CLOUDFLARE_TUNNEL } else { 'mithrandir' }
 
 # Ensure the previous tunnel process is not stale before launching.
 Get-Process -Name "cloudflared" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue

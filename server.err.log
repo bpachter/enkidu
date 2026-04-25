@@ -309,3 +309,107 @@ INFO:     connection open
 2026-04-25 02:24:20,766 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=14
 2026-04-25 02:24:20,804 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=15
 2026-04-25 02:24:24,109 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=15
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:26:19,124 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:19,125 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:19,156 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     13.57.96.134:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     13.57.96.134:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:26:26,792 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:26,793 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:26,825 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     13.57.96.134:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     13.57.96.134:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:26:29,237 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:29,238 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:29,270 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     13.57.96.134:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     13.57.96.134:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:26:30,201 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:30,203 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:30,231 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     13.57.96.134:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     13.57.96.134:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+2026-04-25 02:26:30,991 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:30,993 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:31,025 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     connection closed
+INFO:     13.57.96.134:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     13.57.96.134:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:26:36,607 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:36,609 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:36,638 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     13.57.96.134:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     13.57.96.134:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:26:44,325 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:26:44,327 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:26:44,357 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     52.8.128.170:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     52.8.128.170:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     52.8.128.170:0 - "WebSocket /ws/voice" [accepted]
+INFO:     connection open
+2026-04-25 02:27:00,380 INFO faster_whisper: Processing audio with duration 00:07.851
+2026-04-25 02:27:00,403 INFO faster_whisper: VAD filter removed 00:00.715 of audio
+2026-04-25 02:27:00,710 INFO mithrandir.ui: TTS prelude starting requested_profile='mithrandir' text='Acknowledged. Give me a brief instant.'
+2026-04-25 02:27:02,367 INFO mithrandir.ui: TTS prelude first chunk profile='mithrandir' format=wav
+2026-04-25 02:27:02,381 INFO mithrandir.ui: TTS prelude finished profile='mithrandir'
+2026-04-25 02:27:07,040 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:27:07,041 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:27:07,070 INFO regime_detector: Feature data refreshed through 2026-04-24
+2026-04-25 02:29:06,320 WARNING mithrandir.ui: speech_quality unavailable: No module named 'pydantic_settings'
+INFO:     connection closed
+2026-04-25 02:29:10,689 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:29:10,690 INFO regime_detector: Feature data is 1d stale — refreshing
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:29:10,724 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     52.8.128.170:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     52.8.128.170:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 02:29:21,377 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:29:21,379 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:29:21,408 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     52.8.128.170:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     52.8.128.170:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+2026-04-25 02:29:39,258 ERROR mithrandir.ui: Voice WS error: Cannot call "send" once a close message has been sent.
+Traceback (most recent call last):
+  File "C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\main.py", line 1400, in ws_voice
+    spoken_text = spoken_result.get("spoken_text", final_text).strip() or final_text
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\starlette\websockets.py", line 176, in send_json
+    await self.send({"type": "websocket.send", "text": text})
+  File "C:\Python312\Lib\site-packages\starlette\websockets.py", line 98, in send
+    raise RuntimeError('Cannot call "send" once a close message has been sent.')
+RuntimeError: Cannot call "send" once a close message has been sent.
