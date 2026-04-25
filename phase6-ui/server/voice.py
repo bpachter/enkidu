@@ -231,7 +231,7 @@ def _fix_proper_nouns(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _KOKORO_VOICE    = os.environ.get("KOKORO_VOICE",     "bm_george")
-_KOKORO_SPEED    = float(os.environ.get("KOKORO_SPEED",    "0.82"))  # deliberate, authoritative pace
+_KOKORO_SPEED    = float(os.environ.get("KOKORO_SPEED",    "0.90"))  # deliberate, authoritative pace
 _KOKORO_LANG     = os.environ.get("KOKORO_LANG",      "b")       # 'b'=British (bm_george requires this)
 _KOKORO_SR       = 24000
 
@@ -280,7 +280,7 @@ _FX_CRUSH_MIX    = float(os.environ.get("MITHRANDIR_CRUSH_MIX",  "0.0"))
 _FX_CRUSH_BITS   = int(float(os.environ.get("MITHRANDIR_CRUSH_BITS", "16")))
 _FX_CRUSH_DECIM  = int(float(os.environ.get("MITHRANDIR_CRUSH_DECIM", "1")))
 _FX_MEGATRON     = os.environ.get("MITHRANDIR_MEGATRON", "1") == "1"       # enable extended character FX chain
-_MEGATRON_SLOWDOWN = float(os.environ.get("MITHRANDIR_MEGATRON_SLOWDOWN", "1.04"))  # slightly deliberate pace
+_MEGATRON_SLOWDOWN = float(os.environ.get("MITHRANDIR_MEGATRON_SLOWDOWN", "1.0"))   # no post-FX stretch
 
 _kokoro_pipeline = None
 _kokoro_pipeline_lang: Optional[str] = None
