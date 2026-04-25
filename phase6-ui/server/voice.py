@@ -279,8 +279,8 @@ _FX_POST_PITCH   = float(os.environ.get("MITHRANDIR_POST_PITCH", "-0.5"))
 _FX_CRUSH_MIX    = float(os.environ.get("MITHRANDIR_CRUSH_MIX",  "0.0"))
 _FX_CRUSH_BITS   = int(float(os.environ.get("MITHRANDIR_CRUSH_BITS", "16")))
 _FX_CRUSH_DECIM  = int(float(os.environ.get("MITHRANDIR_CRUSH_DECIM", "1")))
-_FX_MEGATRON     = os.environ.get("MITHRANDIR_MEGATRON", "1") == "1"       # enable extended character FX chain
-_MEGATRON_SLOWDOWN = float(os.environ.get("MITHRANDIR_MEGATRON_SLOWDOWN", "1.0"))   # no post-FX stretch
+_FX_MITHRANDIR     = os.environ.get("MITHRANDIR_FX_ENABLED", "1") == "1"     # enable extended character FX chain
+_MITHRANDIR_SLOWDOWN = float(os.environ.get("MITHRANDIR_SLOWDOWN", "1.0"))           # no post-FX stretch
 
 _kokoro_pipeline = None
 _kokoro_pipeline_lang: Optional[str] = None
@@ -368,9 +368,9 @@ def _peaking_eq(
     gain_db: float,
     q: float = 1.4,
 ) -> np.ndarray:
-    """Biquad peaking EQ — Hugo-Weaving Megatron's chest-cavity body lives at
+    """Biquad peaking EQ — Mithrandir's chest-cavity body resonance lives at
     ~200-260 Hz. A moderate +4-5 dB peak there gives the 'speaking from inside
-    armor' resonance without muddying the low end.
+    a great hall' resonance without muddying the low end.
     """
     if gain_db == 0 or center_hz <= 0 or center_hz >= sr / 2:
         return audio
@@ -400,7 +400,7 @@ def _high_shelf(
     gain_db: float,
     slope: float = 1.0,
 ) -> np.ndarray:
-    """RBJ high-shelf — sibilance lift for crisp Megatron consonants."""
+    """RBJ high-shelf — sibilance lift for crisp Mithrandir consonants."""
     if gain_db == 0 or cutoff_hz <= 0 or cutoff_hz >= sr / 2:
         return audio
     try:
@@ -433,7 +433,7 @@ def _short_reverb(
 ) -> np.ndarray:
     """Single-tap chamber reverb (cinematic tail). delay ~60-80 ms with low
     feedback simulates a small armored chamber without the smear of a true
-    convolution reverb. Keeps Megatron sounding 'on screen' rather than
+    convolution reverb. Keeps Mithrandir sounding 'on screen' rather than
     booth-dry."""
     if mix <= 0 or delay_ms <= 0:
         return audio
@@ -595,7 +595,7 @@ def _apply_character_fx(audio: np.ndarray, voice: Optional[str] = None) -> np.nd
     Base chain (always on for Kokoro output):
         pitch shift → formant warp → low shelf boost
 
-    Extended character chain (adds when MITHRANDIR_MEGATRON=1) — tuned for
+    Extended character chain (adds when MITHRANDIR_FX_ENABLED=1) — tuned for
     Mithrandir / Gandalf (Ian McKellen — deep RP British baritone):
         → chest resonance peak (~230 Hz) — large-body weight
         → upper-mid presence peak (~3200 Hz) — crisp consonant articulation
@@ -607,7 +607,7 @@ def _apply_character_fx(audio: np.ndarray, voice: Optional[str] = None) -> np.nd
     audio = _pitch_shift(audio, _FX_PITCH)
     audio = _formant_warp(audio, _FX_FORMANT)
     audio = _low_shelf_boost(audio, _FX_LOW_BOOST_DB, cutoff_hz=_FX_LOW_CUTOFF)
-    if _FX_MEGATRON:
+    if _FX_MITHRANDIR:
         audio = _peaking_eq(audio, _KOKORO_SR, _FX_CHEST_HZ, _FX_CHEST_DB, _FX_CHEST_Q)
         audio = _peaking_eq(audio, _KOKORO_SR, _FX_BITE_HZ,  _FX_BITE_DB,  _FX_BITE_Q)
         audio = _tanh_drive(audio, _FX_DRIVE)
@@ -701,8 +701,8 @@ def _synth_kokoro(text: str, voice_profile: Optional[str] = None) -> Optional[by
             logger.warning("Kokoro returned no audio chunks")
             return None
         audio = np.concatenate(chunks)
-        if _MEGATRON_SLOWDOWN > 1.0:
-            audio = _slowdown_audio(audio, _MEGATRON_SLOWDOWN)
+        if _MITHRANDIR_SLOWDOWN > 1.0:
+            audio = _slowdown_audio(audio, _MITHRANDIR_SLOWDOWN)
         audio = _apply_character_fx(audio, voice=voice_profile or _active_voice)
         audio = _vad_trim(audio, _KOKORO_SR)
         wav   = _numpy_to_wav(audio)
@@ -901,7 +901,7 @@ def _load_ref_text(voice_path: Optional[Path]) -> str:
 
     F5-TTS is much faster and more stable when the ref text is given explicitly
     instead of being auto-transcribed with Whisper on every call (which is what
-    caused the 60-second stalls for the Megatron profile).
+    caused the 60-second stalls for the Mithrandir profile).
     """
     if voice_path is None:
         return ""
@@ -1426,12 +1426,12 @@ def _postprocess_wav_bytes(wav_bytes: bytes, voice_profile: Optional[str]) -> by
         # Always trim trailing artifacts from voice-cloning models — trim before FX
         # so the energy detector sees the raw speech, not reverb/comb ringing.
         audio = _vad_trim(audio, sr)
-        if not _FX_MEGATRON:
+        if not _FX_MITHRANDIR:
             buf_out = io.BytesIO()
             sf.write(buf_out, audio, sr, format="WAV", subtype="PCM_16")
             return buf_out.getvalue()
-        if _MEGATRON_SLOWDOWN > 1.0:
-            audio = _slowdown_audio(audio, _MEGATRON_SLOWDOWN)
+        if _MITHRANDIR_SLOWDOWN > 1.0:
+            audio = _slowdown_audio(audio, _MITHRANDIR_SLOWDOWN)
         # Cloned voices already match the reference timbre; only apply a post-pitch
         # nudge if explicitly configured (default off).
         if _FX_POST_PITCH != 0:

@@ -213,3 +213,20 @@ INFO:     connection open
 INFO:     connection closed
 INFO:     connection closed
 INFO:     connection closed
+2026-04-25 02:19:03,522 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:19:03,523 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:19:03,558 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     52.52.51.12:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     52.52.51.12:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     52.52.51.12:0 - "WebSocket /ws/voice" [accepted]
+INFO:     connection open
+2026-04-25 02:19:19,364 INFO faster_whisper: Processing audio with duration 00:09.131
+2026-04-25 02:19:19,389 INFO faster_whisper: VAD filter removed 00:01.259 of audio
+2026-04-25 02:19:19,984 INFO mithrandir.ui: TTS prelude starting requested_profile='mithrandir' text='A Wizard is never late, nor is he early. He arrives precisely when he means to.'
+2026-04-25 02:19:21,745 INFO mithrandir.ui: TTS prelude first chunk profile='mithrandir' format=wav
+2026-04-25 02:19:21,786 INFO mithrandir.ui: TTS prelude finished profile='mithrandir'
+2026-04-25 02:19:24,685 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 02:19:24,686 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 02:19:24,715 INFO regime_detector: Feature data refreshed through 2026-04-24

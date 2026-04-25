@@ -30,7 +30,7 @@ phase7-ui/
 phase6-ui/server/server.log
 phase6-ui/server/test_tts.wav
 phase6-ui/server/stderr.log
-phase6-ui/server/megatron_test.wav
+phase6-ui/server/mithrandir_test.wav
 phase6-ui/server/bmo_raw*.wav
 # Dev orchestration runtime task log
 phase6-ui/server/dev_tasks.jsonl
