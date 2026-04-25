@@ -228,23 +228,55 @@ def _is_self_reference(query: str) -> bool:
 
 
 def _load_soul() -> str:
-    """Load SOUL.md from the project root. Returns empty string if missing."""
+    """
+    Load SOUL.md and verify its SHA256 against .soul-integrity.
+    Logs CRITICAL and raises RuntimeError if the file is missing or tampered.
+    """
     import hashlib
     import logging
     _log = logging.getLogger("mithrandir.soul")
+
+    root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+    soul_path      = os.path.join(root, "SOUL.md")
+    integrity_path = os.path.join(root, ".soul-integrity")
+
+    # Load content
     try:
-        soul_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "SOUL.md"))
         with open(soul_path, encoding="utf-8") as f:
-            content = f.read().strip()
-        digest = hashlib.sha256(content.encode()).hexdigest()[:12]
-        _log.info(f"SOUL.md loaded — {len(content)} chars, sha256:{digest}")
-        return content
+            content = f.read()
     except FileNotFoundError:
-        _log.critical("SOUL.md NOT FOUND — Mithrandir is running without its foundational identity document")
-        return ""
+        _log.critical(
+            "SOUL.md NOT FOUND — Mithrandir cannot start without its foundational "
+            "identity document. Restore SOUL.md from git before proceeding."
+        )
+        raise RuntimeError("SOUL.md missing")
     except Exception as e:
         _log.critical(f"SOUL.md failed to load: {e}")
-        return ""
+        raise RuntimeError(f"SOUL.md load error: {e}")
+
+    # Compute hash
+    actual_digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    # Verify against pinned hash
+    try:
+        with open(integrity_path, encoding="utf-8") as f:
+            pinned_digest = f.read().strip()
+        if actual_digest != pinned_digest:
+            _log.critical(
+                f"SOUL.md INTEGRITY VIOLATION — content does not match .soul-integrity.\n"
+                f"  Pinned:  {pinned_digest}\n"
+                f"  Actual:  {actual_digest}\n"
+                "If this was an intentional edit, run: python tools/update_soul_integrity.py"
+            )
+            raise RuntimeError("SOUL.md integrity check failed")
+    except FileNotFoundError:
+        _log.warning(
+            ".soul-integrity not found — soul hash cannot be verified. "
+            "Run: python tools/update_soul_integrity.py"
+        )
+
+    _log.info(f"SOUL.md verified — {len(content.strip())} chars, sha256:{actual_digest[:16]}")
+    return content.strip()
 
 
 _SOUL = _load_soul()
