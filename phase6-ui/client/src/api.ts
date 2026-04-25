@@ -156,7 +156,7 @@ export function createChatSocket(
     if (data.type === 'done')      onDone()
     if (data.type === 'error')     onError(data.content)
     if (data.type === 'tts_error' && onTtsError) onTtsError(data.content)
-    if ((data.type === 'tts_chunk' || data.type === 'tts_audio') && onAudio)
+    if ((data.type === 'tts_chunk' || data.type === 'tts_audio' || data.type === 'tts_prelude_chunk') && onAudio)
       onAudio(data.data, data.format ?? 'wav')
   }
   ws.onclose = () => { try { onDone() } catch {} }

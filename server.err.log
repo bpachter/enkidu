@@ -384,3 +384,91 @@ INFO:     connection open
 2026-04-25 01:23:31,645 ERROR mithrandir.voice: F5-TTS timed out for profile: C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav
 2026-04-25 01:23:39,087 INFO mithrandir.voice: Kokoro: 'The name Mithrandir is Sindarin for the …' \u2192 517,484 bytes (voice=bm_george)
 2026-04-25 01:23:39,088 INFO mithrandir.voice: TTS stream backend=Kokoro profile='mithrandir' seq=0
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 01:24:59,126 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 01:24:59,127 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 01:24:59,161 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     162.220.232.43:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     162.220.232.43:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     162.220.232.43:0 - "WebSocket /ws/voice" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 01:25:37,072 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 01:25:37,074 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 01:25:37,103 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     162.220.232.43:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     162.220.232.43:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+INFO:     162.220.232.43:0 - "WebSocket /ws/voice" [accepted]
+INFO:     connection open
+INFO:     connection closed
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 01:27:14,888 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 01:27:14,897 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 01:27:14,936 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     162.220.232.43:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     162.220.232.43:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open
+2026-04-25 01:27:40,815 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 01:27:40,815 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 01:27:40,849 INFO regime_detector: Feature data refreshed through 2026-04-24
+2026-04-25 01:28:02,530 INFO mithrandir.ui: TTS: synthesizing 2884 chars (profile='mithrandir')
+2026-04-25 01:28:02,532 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=0
+2026-04-25 01:28:02,534 INFO mithrandir.voice: Starting F5-TTS worker process…
+2026-04-25 01:28:28,035 INFO mithrandir.voice: F5-TTS worker ready.
+2026-04-25 01:28:34,639 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=0
+2026-04-25 01:28:34,737 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=1
+2026-04-25 01:28:39,275 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=1
+2026-04-25 01:28:39,417 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=2
+2026-04-25 01:28:44,091 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=2
+2026-04-25 01:28:44,232 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=3
+2026-04-25 01:28:46,352 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=3
+2026-04-25 01:28:46,420 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=4
+2026-04-25 01:28:48,860 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=4
+2026-04-25 01:28:48,949 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=5
+2026-04-25 01:28:52,423 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=5
+2026-04-25 01:28:52,504 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=6
+2026-04-25 01:28:55,410 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=6
+2026-04-25 01:28:55,530 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=7
+2026-04-25 01:28:59,092 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=7
+2026-04-25 01:28:59,180 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=8
+2026-04-25 01:29:01,252 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' success seq=8
+2026-04-25 01:29:01,286 INFO mithrandir.voice: TTS stream backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav seq=9
+2026-04-25 01:29:02,549 ERROR mithrandir.ui: Chat TTS error: 
+Traceback (most recent call last):
+  File "C:\Python312\Lib\asyncio\tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voice.py", line 1559, in synthesize_streaming
+    wav = await loop.run_in_executor(None, lambda s=sentence: _synth_f5tts(s, clone_ref))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\main.py", line 836, in ws_chat
+    """Non-streaming chat endpoint (fallback for clients that don't use WS)."""
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\asyncio\tasks.py", line 519, in wait_for
+    async with timeouts.timeout(timeout):
+  File "C:\Python312\Lib\asyncio\timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+INFO:     connection closed
+INFO:     connection closed
+2026-04-25 01:30:33,250 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
+2026-04-25 01:30:33,252 INFO regime_detector: Feature data is 1d stale — refreshing
+2026-04-25 01:30:33,286 INFO regime_detector: Feature data refreshed through 2026-04-24
+INFO:     162.220.232.43:0 - "WebSocket /ws/chat" [accepted]
+INFO:     connection open
+INFO:     162.220.232.43:0 - "WebSocket /ws/gpu" [accepted]
+INFO:     connection open

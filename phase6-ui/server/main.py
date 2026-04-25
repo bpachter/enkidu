@@ -22,6 +22,7 @@ import base64
 import json
 import logging
 import os
+import random
 import sys
 import time
 import threading
@@ -274,6 +275,78 @@ _VOICE_MAX_B64_CHARS = int(os.environ.get("MITHRANDIR_VOICE_MAX_B64_CHARS", "800
 _VOICE_MAX_RAW_BYTES = int(os.environ.get("MITHRANDIR_VOICE_MAX_RAW_BYTES", "5000000"))
 _VOICE_MIN_RATE = int(os.environ.get("MITHRANDIR_VOICE_MIN_SAMPLE_RATE", "8000"))
 _VOICE_MAX_RATE = int(os.environ.get("MITHRANDIR_VOICE_MAX_SAMPLE_RATE", "48000"))
+
+_PROCESSING_PRELUDES = [
+    "Give me a moment to process your query.",
+    "One moment while I think this through.",
+    "Understood. Let me work through that for you.",
+    "I heard you. Give me just a moment.",
+    "Very well. I am processing that now.",
+    "Hold fast. I will have an answer shortly.",
+    "Understood. One moment while I gather my thoughts.",
+    "I have it. Give me a brief moment.",
+    "Acknowledged. Processing now.",
+    "Let me take a moment to work that out.",
+    "I am on it now. One moment.",
+    "Good question. Give me a second to process it.",
+    "Received. I am working on your answer.",
+    "I hear you clearly. One moment while I process.",
+    "Let me trace that through quickly.",
+    "Working through it now. One moment.",
+    "I am analyzing that now.",
+    "Processing your request now.",
+    "Give me a short moment to assemble the best answer.",
+    "On it. One moment while I compute that.",
+    "I am checking that now. One moment.",
+    "Allow me a moment to think this through carefully.",
+    "I will have that for you in just a moment.",
+    "Certainly. Give me one moment.",
+    "Right away. Processing your query now.",
+    "Understood. I am preparing your response.",
+    "I am working on that now.",
+    "Let me process that and report back.",
+    "One moment. I am assembling the relevant details.",
+    "I have begun processing your request.",
+    "Excellent. Give me a brief moment to resolve that.",
+    "I will sort that out now. One moment.",
+    "Understood. Let me verify the details quickly.",
+    "Very good. I am processing that request.",
+    "I hear you. Working through it now.",
+    "One moment while I map that out.",
+    "Give me a breath to put this together.",
+    "Processing now. I will be with you shortly.",
+    "Allow me a moment to form a precise answer.",
+    "I am evaluating that now.",
+    "One moment while I pull that into focus.",
+    "Understood. Calculating the best response now.",
+    "Acknowledged. Give me a brief instant.",
+    "Working on it. One moment please.",
+    "I have started processing your query.",
+    "Let me gather the right context for that.",
+    "One moment while I prepare a clear answer.",
+    "I am reviewing that now.",
+    "Give me a short moment to reason that through.",
+    "Understood. I am on the trail of it now.",
+    "I will return with an answer shortly.",
+    "One moment while I refine that response.",
+    "Processing your request with care. One moment.",
+    "I am with you. Give me a moment to compute this.",
+    "Let me turn that over for a moment.",
+    "Very well. One moment while I resolve the details.",
+    "I am preparing a focused answer now.",
+    "Understood. Brief pause while I process.",
+    "One moment while I line up the right answer.",
+    "Working through the details now.",
+    "I am processing that request right now.",
+    "Give me a moment to confirm the best path.",
+    "Understood. Let me synthesize that for you.",
+    "One moment while I shape that response.",
+    "I have heard you. Processing now.",
+    "I will have an answer for you in a moment.",
+    "One moment.",
+    "Okay one moment...",
+    "A Wizard is never late, nor is he early. He arrives precisely when he means to.",
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -738,6 +811,40 @@ def _normalize_issue_tags(tags: str | list[str]) -> str:
     return str(tags or "").strip()
 
 
+def _pick_processing_prelude() -> str:
+    return random.choice(_PROCESSING_PRELUDES)
+
+
+async def _stream_processing_prelude(ws: WebSocket, voice, voice_profile: Optional[str]) -> None:
+    if voice is None or not hasattr(voice, "synthesize_streaming"):
+        return
+
+    prelude_text = _pick_processing_prelude()
+
+    async def _send_prelude_chunk(audio_bytes: bytes, fmt: str, seq: int) -> None:
+        try:
+            await ws.send_json(
+                {
+                    "type": "tts_prelude_chunk",
+                    "data": base64.b64encode(audio_bytes).decode(),
+                    "format": fmt,
+                    "seq": seq,
+                    "text": prelude_text,
+                }
+            )
+        except Exception as send_exc:
+            raise WebSocketDisconnect() from send_exc
+
+    await asyncio.wait_for(
+        voice.synthesize_streaming(
+            prelude_text,
+            _send_prelude_chunk,
+            voice_profile=voice_profile,
+        ),
+        timeout=12.0,
+    )
+
+
 @app.post("/api/voice")
 def set_voice(body: VoiceSelect):
     """Switch the active TTS voice profile."""
@@ -913,6 +1020,10 @@ async def ws_chat(ws: WebSocket):
             tts_enabled      = data.get("tts", True)   # client can opt out
             voice_profile_req = _effective_voice_profile(data.get("voice_profile"))
             response_mode = "spoken" if tts_enabled else "visual"
+            prelude_task = None
+
+            if tts_enabled and voice and message:
+                prelude_task = asyncio.create_task(_stream_processing_prelude(ws, voice, voice_profile_req))
 
             loop = asyncio.get_running_loop()
             tokens_sent = [0]
@@ -952,6 +1063,12 @@ async def ws_chat(ws: WebSocket):
                 await ws.send_json({"type": "error", "content": str(e)})
                 await ws.send_json({"type": "done"})
                 continue
+
+            if prelude_task is not None:
+                try:
+                    await prelude_task
+                except Exception as prelude_exc:
+                    logger.warning(f"TTS prelude failed: {prelude_exc}")
 
             spoken_result = _rewrite_for_speech(final_text, user_query=message)
             spoken_text = spoken_result.get("spoken_text", final_text).strip() or final_text
@@ -1104,6 +1221,7 @@ async def ws_voice(ws: WebSocket):
 
             await ws.send_json({"type": "transcript", "text": text})
             await ws.send_json({"type": "status", "content": "Thinking…"})
+            prelude_task = asyncio.create_task(_stream_processing_prelude(ws, voice, voice_profile))
 
             # ── 2. Run agent ───────────────────────────────────────────────
             collected_tokens: list[str] = []
@@ -1138,6 +1256,12 @@ async def ws_voice(ws: WebSocket):
                     await ws.send_json({"type": "error", "content": str(e)})
                     await ws.send_json({"type": "done"})
                     continue
+
+            if prelude_task is not None:
+                try:
+                    await prelude_task
+                except Exception as prelude_exc:
+                    logger.warning(f"Voice prelude failed: {prelude_exc}")
 
             spoken_result = _rewrite_for_speech(final_text, user_query=text)
             spoken_text = spoken_result.get("spoken_text", final_text).strip() or final_text

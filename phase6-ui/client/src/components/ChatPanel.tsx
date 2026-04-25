@@ -556,7 +556,7 @@ export default function ChatPanel() {
           messages: s.messages.map((m) => m.id === voiceBotIdRef.current ? { ...m, spokenPreview: msg.content } : m),
         }))
 
-      } else if (msg.type === 'tts_chunk' || msg.type === 'tts_audio') {
+      } else if (msg.type === 'tts_chunk' || msg.type === 'tts_audio' || msg.type === 'tts_prelude_chunk') {
         // First chunk: transition to speaking state
         if (voiceStateRef.current !== 'speaking') {
           setVoiceState('speaking')
