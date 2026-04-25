@@ -512,7 +512,7 @@ def main():
 
     def _write(path, rows):
         Path(path).write_text(
-            "".join(f"{wav}|{text}\n" for wav, text in rows),
+            "".join(f"{wav}|{text}|0\n" for wav, text in rows),
             encoding="utf-8",
         )
         print(f"Wrote {len(rows)} rows -> {path}")
