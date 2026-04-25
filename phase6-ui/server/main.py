@@ -355,7 +355,13 @@ _PRELUDE_WARMED_PROFILES: set[str] = set()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:4173", "http://localhost:8000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:4173",
+        "http://localhost:8000",
+        "https://bpachter.github.io",
+        "https://gpu.bpachter.dev",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
