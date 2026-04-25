@@ -4,12 +4,11 @@ phase6-ui/server/voice.py — Speech-to-text + text-to-speech for Mithrandir
 STT: faster-whisper (base.en CUDA float16 -> CPU int8 fallback)
 
 TTS priority:
-    1. Kokoro (fast local neural TTS)
-    2. edge-tts (cloud fallback)
-    3. pyttsx3 SAPI5 (offline Windows fallback)
-
-Voice cloning paths were intentionally removed from active runtime flow to
-favor reliability, low latency, and lower GPU pressure.
+    1. StyleTTS2 fine-tuned Mithrandir voice (when available)
+    2. F5-TTS voice clone for wav/mp3 reference profiles (e.g. mithrandir)
+    3. Kokoro (fast local neural TTS fallback)
+    4. edge-tts (cloud fallback)
+    5. pyttsx3 SAPI5 (offline fallback)
 """
 
 import asyncio
@@ -35,6 +34,7 @@ logger = logging.getLogger("mithrandir.voice")
 # ---------------------------------------------------------------------------
 
 _VOICES_DIR = Path(__file__).parent / "voices"
+_ROOT_DIR = Path(__file__).parent.parent.parent
 
 # Kokoro built-in voice IDs — these are the voices you can select in the UI.
 # British voices need lang_code='b', American need lang_code='a'.
@@ -62,9 +62,32 @@ def list_voices() -> list[str]:
 
 
 def get_voice_path(profile_id: str) -> Optional[Path]:
-    """Return path to reference wav for F5/Chatterbox, or None."""
-    p = _VOICES_DIR / f"{profile_id}.wav"
-    return p if p.exists() else None
+    """Return reference path for clone profiles (.wav/.mp3).
+
+    Prefer prepared wav references for reliable F5 startup. For Mithrandir,
+    fall back to the original source clip voice_gandalf.mp3 only if no wav
+    reference is present.
+    """
+    candidates: list[Path] = []
+
+    if profile_id in {"mithrandir", "gandalf"}:
+        candidates.extend([
+            _VOICES_DIR / "mithrandir.wav",
+            _VOICES_DIR / "gandalf.wav",
+        ])
+
+    candidates.extend([
+        _VOICES_DIR / f"{profile_id}.wav",
+        _VOICES_DIR / f"{profile_id}.mp3",
+    ])
+
+    if profile_id in {"mithrandir", "gandalf"}:
+        candidates.append(_ROOT_DIR / "voice-training" / "voice_gandalf.mp3")
+
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
 
 
 # Active voice (Kokoro voice ID or wav profile name).
@@ -73,6 +96,16 @@ _active_voice: str = os.environ.get(
     "MITHRANDIR_DEFAULT_VOICE",
     os.environ.get("KOKORO_VOICE", "bm_george"),
 )
+_FORCED_VOICE_PROFILE = os.environ.get("MITHRANDIR_FORCE_VOICE_PROFILE", "").strip()
+
+
+def _resolve_voice_profile(requested: Optional[str]) -> str:
+    """Apply server-side forced profile override when configured."""
+    if _FORCED_VOICE_PROFILE:
+        return _FORCED_VOICE_PROFILE
+    if requested and requested.strip():
+        return requested.strip()
+    return _active_voice
 
 
 def get_active_voice() -> str:
@@ -1430,15 +1463,17 @@ async def synthesize(text: str, voice_profile: Optional[str] = None) -> tuple[by
 
     Priority:
         1. StyleTTS2 fine-tuned Mithrandir voice (once training is complete)
-        2. Kokoro bm_george + FX chain (fast local — always available)
-        3. edge-tts (cloud fallback)
-        4. pyttsx3 SAPI5 (offline last resort)
+        2. F5-TTS voice clone for wav/mp3 reference profiles
+        3. Kokoro bm_george + FX chain (fast local fallback)
+        4. edge-tts (cloud fallback)
+        5. pyttsx3 SAPI5 (offline last resort)
     """
     text = _strip_markdown(text)
     if not text.strip():
         return b"", "wav"
 
-    profile = voice_profile if voice_profile is not None else _active_voice
+    profile = _resolve_voice_profile(voice_profile)
+    clone_ref = get_voice_path(profile)
     loop    = asyncio.get_event_loop()
 
     # 1. StyleTTS2 fine-tuned voice (active once training completes).
@@ -1446,21 +1481,33 @@ async def synthesize(text: str, voice_profile: Optional[str] = None) -> tuple[by
         wav = await loop.run_in_executor(None, lambda: _synth_styletts2(text))
         if wav:
             wav = _postprocess_wav_bytes(wav, profile)
+            logger.info(f"TTS backend=StyleTTS2 profile={profile!r}")
             return wav, "wav"
         logger.warning("StyleTTS2 failed, falling back to Kokoro…")
 
-    # 2. Kokoro (primary local path).
+    # 2. F5-TTS voice clone from reference file (wav/mp3).
+    if clone_ref and _f5_available():
+        logger.info(f"TTS backend=F5 profile={profile!r} ref={clone_ref}")
+        wav = await loop.run_in_executor(None, lambda: _synth_f5tts(text, clone_ref))
+        if wav:
+            wav = _postprocess_wav_bytes(wav, profile)
+            logger.info(f"TTS backend=F5 profile={profile!r} success")
+            return wav, "wav"
+        logger.warning(f"F5-TTS failed for profile '{profile}', falling back to Kokoro…")
+
+    # 3. Kokoro (primary local fallback path).
     wav = await loop.run_in_executor(None, lambda: _synth_kokoro(text, profile))
     if wav:
+        logger.info(f"TTS backend=Kokoro profile={profile!r}")
         return wav, "wav"
     logger.warning("Kokoro failed, falling back to edge-tts…")
 
-    # 2. edge-tts (cloud)
+    # 4. edge-tts (cloud)
     mp3 = await _synth_edge_tts(text)
     if mp3:
         return mp3, "mp3"
 
-    # 3. pyttsx3 SAPI5 (offline)
+    # 5. pyttsx3 SAPI5 (offline)
     try:
         wav = await loop.run_in_executor(None, lambda: _synth_sapi(text))
         if wav:
@@ -1491,7 +1538,8 @@ async def synthesize_streaming(
         return
 
     sentences  = split_sentences(text)
-    profile    = voice_profile if voice_profile is not None else _active_voice
+    profile    = _resolve_voice_profile(voice_profile)
+    clone_ref  = get_voice_path(profile)
     loop       = asyncio.get_event_loop()
 
     for seq, sentence in enumerate(sentences):
@@ -1504,9 +1552,19 @@ async def synthesize_streaming(
             wav = await loop.run_in_executor(None, lambda s=sentence: _synth_styletts2(s))
             if wav:
                 wav = _postprocess_wav_bytes(wav, profile)
+                logger.info(f"TTS stream backend=StyleTTS2 profile={profile!r} seq={seq}")
+
+        if not wav and clone_ref and _f5_available():
+            logger.info(f"TTS stream backend=F5 profile={profile!r} ref={clone_ref} seq={seq}")
+            wav = await loop.run_in_executor(None, lambda s=sentence: _synth_f5tts(s, clone_ref))
+            if wav:
+                wav = _postprocess_wav_bytes(wav, profile)
+                logger.info(f"TTS stream backend=F5 profile={profile!r} success seq={seq}")
 
         if not wav:
             wav = await loop.run_in_executor(None, lambda s=sentence: _synth_kokoro(s, profile))
+            if wav:
+                logger.info(f"TTS stream backend=Kokoro profile={profile!r} seq={seq}")
 
         if wav:
             await on_sentence(wav, "wav", seq)

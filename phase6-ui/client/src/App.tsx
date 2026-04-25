@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Map as MapIcon, Settings2, BookText, Code2 } from 'lucide-react'
+import { Map as MapIcon, Settings2, BookText, Code2, Moon, Sun } from 'lucide-react'
 import Header           from './components/Header'
 import ChatPanel        from './components/ChatPanel'
 import GpuHistoryPanel  from './components/GpuHistoryPanel'
@@ -15,6 +15,7 @@ import { createGpuSocket } from './api'
 
 type LeftTab = 'params' | 'docs'
 type AppMode = 'terminal' | 'avalon' | 'dev'
+type ThemeMode = 'dark' | 'light'
 
 export default function App() {
   const setGpuStats          = useStore((s) => s.setGpuStats)
@@ -22,6 +23,10 @@ export default function App() {
   const setPendingChatInput  = useStore((s) => s.setPendingChatInput)
   const [leftTab, setLeftTab] = useState<LeftTab>('params')
   const [mode,    setMode]    = useState<AppMode>('terminal')
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === 'undefined') return 'dark'
+    return window.localStorage.getItem('mithrandir-theme') === 'light' ? 'light' : 'dark'
+  })
 
   // GPU WebSocket lives here — always connected regardless of which panel is visible.
   useEffect(() => {
@@ -42,6 +47,11 @@ export default function App() {
     return () => ws.close()
   }, [setGpuStats, pushGpuHistory])
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    window.localStorage.setItem('mithrandir-theme', theme)
+  }, [theme])
+
   if (mode === 'avalon') {
     return <SitingPanel onClose={() => setMode('terminal')} />
   }
@@ -54,12 +64,22 @@ export default function App() {
     <div className="app-grid">
       <Header />
 
+      <button
+        onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        title={theme === 'dark' ? 'Switch to Gandalf the White (light)' : 'Switch to Gandalf the Grey (dark)'}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="theme-toggle fixed top-2 right-3 z-50"
+      >
+        {theme === 'dark' ? <Sun className="h-3 w-3" strokeWidth={2.3} /> : <Moon className="h-3 w-3" strokeWidth={2.3} />}
+        {theme === 'dark' ? 'White' : 'Grey'}
+      </button>
+
       {/* Avalon launch button — pinned to header */}
       <button
         onClick={() => setMode('avalon')}
         title="Open Avalon, the realm-map for datacenter siting"
         className="
-          group fixed top-2 right-[230px] z-50
+          group fixed top-2 right-[130px] z-50
           inline-flex items-center gap-2 rounded-sm border border-cyan-dim bg-cyan-soft
           px-3 py-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.22em]
           text-cyan transition-all duration-150
@@ -76,7 +96,7 @@ export default function App() {
         onClick={() => setMode('dev')}
         title="Open Mithrandir Forge — code orchestration and review"
         className="
-          group fixed top-2 right-[320px] z-50
+          group fixed top-2 right-[220px] z-50
           inline-flex items-center gap-2 rounded-sm border border-violet-800/50 bg-violet-900/20
           px-3 py-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.22em]
           text-violet-400 transition-all duration-150

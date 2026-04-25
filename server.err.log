@@ -1,23 +1,24 @@
-INFO:     Started server process [51052]
+INFO:     Started server process [11788]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-2026-04-25 00:35:26,407 INFO mithrandir.ui: Voice module loaded.
-2026-04-25 00:35:26,409 INFO mithrandir.ui: Voice pre-warm started (background thread).
-INFO:     162.220.232.218:0 - "WebSocket /ws/chat" [accepted]
-INFO:     connection open
-INFO:     162.220.232.218:0 - "WebSocket /ws/gpu" [accepted]
-INFO:     connection open
-2026-04-25 00:35:30,543 INFO mithrandir.voice.optim: Tensor cores enabled (TF32+cuDNN benchmark) on NVIDIA GeForce RTX 4090
-2026-04-25 00:35:30,544 INFO mithrandir.voice: Pre-warming Kokoro…
-2026-04-25 00:35:30,799 INFO regime_detector: Regime model loaded from cache (trained 1d ago)
-2026-04-25 00:35:30,799 INFO regime_detector: Feature data is 1d stale — refreshing
-2026-04-25 00:35:33,459 INFO regime_detector: Feature data refreshed through 2026-04-24
-2026-04-25 00:35:58,765 INFO mithrandir.voice: Loading Kokoro pipeline (lang=b)…
-2026-04-25 00:36:03,400 INFO mithrandir.voice: Kokoro ready.
-2026-04-25 00:36:07,194 INFO mithrandir.voice: Kokoro: 'Online.…' \u2192 79,724 bytes (voice=bm_george)
-2026-04-25 00:36:07,195 INFO mithrandir.voice.optim: Kokoro warmup pass 1/3: ok
-2026-04-25 00:36:08,535 INFO mithrandir.voice: Kokoro: 'Initialising.…' \u2192 97,004 bytes (voice=bm_george)
-2026-04-25 00:36:08,535 INFO mithrandir.voice.optim: Kokoro warmup pass 2/3: ok
-2026-04-25 00:36:09,886 INFO mithrandir.voice: Kokoro: 'Ready when you are.…' \u2192 114,284 bytes (voice=bm_george)
-2026-04-25 00:36:09,887 INFO mithrandir.voice.optim: Kokoro warmup pass 3/3: ok
+2026-04-25 00:54:45,502 INFO mithrandir.ui: Voice module loaded.
+2026-04-25 00:54:45,503 INFO mithrandir.ui: Voice pre-warm started (background thread).
+2026-04-25 00:54:45,506 INFO mithrandir.voice: TTS backend=F5 profile='mithrandir' ref=C:\Users\benpa\OneDrive\Desktop\Enkidu\phase6-ui\server\voices\mithrandir.wav
+2026-04-25 00:54:45,511 INFO mithrandir.voice: Starting F5-TTS worker process…
+2026-04-25 00:54:47,773 INFO mithrandir.voice.optim: Tensor cores enabled (TF32+cuDNN benchmark) on NVIDIA GeForce RTX 4090
+2026-04-25 00:54:47,773 INFO mithrandir.voice: Pre-warming Kokoro…
+2026-04-25 00:54:56,900 INFO mithrandir.voice: Loading Kokoro pipeline (lang=b)…
+C:\Users\benpa\AppData\Roaming\Python\Python312\site-packages\torch\nn\modules\rnn.py:123: UserWarning: dropout option adds dropout after all but last recurrent layer, so non-zero dropout expects num_layers greater than 1, but got dropout=0.2 and num_layers=1
+  warnings.warn(
+C:\Users\benpa\AppData\Roaming\Python\Python312\site-packages\torch\nn\utils\weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+2026-04-25 00:54:59,674 INFO mithrandir.voice: Kokoro ready.
+2026-04-25 00:55:01,988 INFO mithrandir.voice: Kokoro: 'Online.…' \u2192 79,724 bytes (voice=bm_george)
+2026-04-25 00:55:01,988 INFO mithrandir.voice.optim: Kokoro warmup pass 1/3: ok
+2026-04-25 00:55:03,370 INFO mithrandir.voice: Kokoro: 'Initialising.…' \u2192 97,004 bytes (voice=bm_george)
+2026-04-25 00:55:03,371 INFO mithrandir.voice.optim: Kokoro warmup pass 2/3: ok
+2026-04-25 00:55:03,801 INFO mithrandir.voice: F5-TTS worker ready.
+2026-04-25 00:55:04,859 INFO mithrandir.voice: Kokoro: 'Ready when you are.…' \u2192 114,284 bytes (voice=bm_george)
+2026-04-25 00:55:04,860 INFO mithrandir.voice.optim: Kokoro warmup pass 3/3: ok
+2026-04-25 00:55:06,220 INFO mithrandir.voice: TTS backend=F5 profile='mithrandir' success
