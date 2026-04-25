@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Activity, Cpu, Thermometer, Zap, RadioTower } from 'lucide-react'
+import { Activity, Cpu, Thermometer, Zap, RadioTower, Moon, Sun } from 'lucide-react'
 import { useStore } from '../store'
 import { StatusDot, Tooltip } from './ui'
+
+type ThemeMode = 'dark' | 'light'
 
 export default function Header() {
   const busy   = useStore((s) => s.busy)
   const regime = useStore((s) => s.regime)
   const gpu    = useStore((s) => s.gpuStats)
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === 'undefined') return 'dark'
+    const stored = window.localStorage.getItem('mithrandir-theme')
+    return stored === 'light' ? 'light' : 'dark'
+  })
 
   // Live wall clock — updates once a second so the header feels alive.
   const [now, setNow] = useState(() => new Date())
@@ -14,6 +21,15 @@ export default function Header() {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    window.localStorage.setItem('mithrandir-theme', theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+  }
   const date = now.toISOString().slice(0, 10)
   const time = now.toISOString().slice(11, 19)
 
@@ -79,6 +95,20 @@ export default function Header() {
       )}
 
       <div className="header-status ml-auto lg:ml-4">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="theme-toggle"
+          title={theme === 'dark' ? 'Switch to Gandalf the White (light)' : 'Switch to Gandalf the Grey (dark)'}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-3 w-3" strokeWidth={2.3} />
+          ) : (
+            <Moon className="h-3 w-3" strokeWidth={2.3} />
+          )}
+          {theme === 'dark' ? 'White' : 'Grey'}
+        </button>
         <StatusDot tone={busy ? 'amber' : 'green'} />
         <span className="font-display font-medium">
           <Activity className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />

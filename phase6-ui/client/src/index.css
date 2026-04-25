@@ -5,39 +5,43 @@
 @tailwind utilities;
 
 /* ============================================================
-   MITHRANDIR — Ancient Gold & Mithril Silver
-   Dark stone base. Antique gold accent. Mithril silver secondary.
-   ============================================================ */
+  MITHRANDIR — Gandalf Themes
+  Dark mode: Gandalf the Grey (silver/graphite)
+  Light mode: Gandalf the White (pearl/steel)
+  ============================================================ */
 
 :root {
   /* ── Surfaces ─────────────────────────────────────────────── */
-  --bg:            #0d0b09;
-  --bg-panel:      #12100d;
-  --bg-elevated:   #1c1914;
-  --bg-input:      #0f0d0a;
-  --bg-sunken:     #080706;
+  --bg:            #0b0d10;
+  --bg-rgb:        11 13 16;
+  --bg-panel:      #111419;
+  --bg-elevated:   #1a1f26;
+  --bg-input:      #0e1115;
+  --bg-sunken:     #080a0d;
 
   /* ── Borders ──────────────────────────────────────────────── */
-  --border:        #241f16;
-  --border-strong: #362e20;
+  --border:        #252b34;
+  --border-strong: #3a424e;
 
   /* ── Foreground / text ────────────────────────────────────── */
-  --fg:            #d4cfc0;
-  --fg-strong:     #ece8de;
-  --white-dim:     #7a7060;
-  --subtle:        #3d3628;
+  --fg:            #d7dce3;
+  --fg-strong:     #eef2f7;
+  --white-dim:     #8f98a6;
+  --subtle:        #4e5868;
 
-  /* ── Primary antique gold ─────────────────────────────────── */
-  --amber:         #d4af37;
-  --amber-dim:     #3d2c08;
-  --amber-glow:    #d4af3720;
-  --amber-soft:    #d4af3712;
+  /* ── Primary silver accent ────────────────────────────────── */
+  --amber:         #b8c0cc;
+  --amber-dim:     #5f6876;
+  --amber-glow:    #b8c0cc22;
+  --amber-soft:    #b8c0cc14;
+  --amber-rgb:     184 192 204;
 
   /* ── Mithril silver ───────────────────────────────────────── */
-  --cyan:          #a8bcd8;
-  --cyan-dim:      #1e2a3d;
-  --cyan-glow:     #a8bcd820;
-  --cyan-soft:     #a8bcd810;
+  --cyan:          #c8d6ea;
+  --cyan-dim:      #4f627e;
+  --cyan-glow:     #c8d6ea26;
+  --cyan-soft:     #c8d6ea14;
+  --cyan-rgb:      200 214 234;
 
   /* ── Success green ────────────────────────────────────────── */
   --green:         #4ade80;
@@ -77,6 +81,42 @@
   color-scheme: dark;
 }
 
+[data-theme='light'] {
+  --bg:            #f7f9fc;
+  --bg-rgb:        247 249 252;
+  --bg-panel:      #ffffff;
+  --bg-elevated:   #f0f3f8;
+  --bg-input:      #ffffff;
+  --bg-sunken:     #e9edf3;
+
+  --border:        #d4dbe5;
+  --border-strong: #bac4d2;
+
+  --fg:            #263140;
+  --fg-strong:     #111827;
+  --white-dim:     #5f6b7d;
+  --subtle:        #8b95a5;
+
+  --amber:         #6e7789;
+  --amber-dim:     #4f5868;
+  --amber-glow:    #6e778924;
+  --amber-soft:    #6e778914;
+  --amber-rgb:     110 119 137;
+
+  --cyan:          #5f7698;
+  --cyan-dim:      #40526d;
+  --cyan-glow:     #5f769824;
+  --cyan-soft:     #5f769812;
+  --cyan-rgb:      95 118 152;
+
+  --shadow-sm:  0 1px 2px rgba(32,46,66,0.08);
+  --shadow:     0 3px 10px rgba(32,46,66,0.12), 0 1px 2px rgba(32,46,66,0.1);
+  --shadow-md:  0 8px 24px rgba(32,46,66,0.15), 0 2px 6px rgba(32,46,66,0.1);
+  --shadow-lg:  0 14px 36px rgba(32,46,66,0.2), 0 4px 10px rgba(32,46,66,0.12);
+
+  color-scheme: light;
+}
+
 /* ── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 button, input, select, textarea { font: inherit; color: inherit; background: none; border: none; }
@@ -95,7 +135,7 @@ html, body, #root {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Subtle ambient gold gradient ──────────────────────────── */
+/* ── Subtle ambient silver gradient ────────────────────────── */
 body::before {
   content: '';
   position: fixed;
@@ -103,8 +143,8 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 15% 0%,  rgba(212,175,55,0.05), transparent 65%),
-    radial-gradient(ellipse 60% 45% at 85% 100%, rgba(168,188,216,0.04), transparent 60%);
+    radial-gradient(ellipse 80% 50% at 15% 0%,  rgb(var(--amber-rgb) / 0.08), transparent 65%),
+    radial-gradient(ellipse 60% 45% at 85% 100%, rgb(var(--cyan-rgb) / 0.06), transparent 60%);
 }
 
 /* ── Selection / focus ─────────────────────────────────────── */
@@ -178,7 +218,7 @@ body::before {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212,175,55,0.3), rgba(168,188,216,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--amber-rgb) / 0.35), rgb(var(--cyan-rgb) / 0.25), transparent);
 }
 .hw-cell {
   flex: 1;
@@ -192,7 +232,7 @@ body::before {
   position: relative;
   transition: background var(--transition);
 }
-.hw-cell:hover { background: rgba(212,175,55,0.04); }
+.hw-cell:hover { background: rgb(var(--amber-rgb) / 0.06); }
 .hw-cell:last-child { border-right: none; }
 .hw-cell-header {
   display: flex; justify-content: space-between; align-items: flex-start;
@@ -284,7 +324,7 @@ body::before {
   position: absolute;
   left: 0; right: 0; bottom: -1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent 5%, rgba(212,175,55,0.4) 35%, rgba(168,188,216,0.25) 65%, transparent 95%);
+  background: linear-gradient(90deg, transparent 5%, rgb(var(--amber-rgb) / 0.45) 35%, rgb(var(--cyan-rgb) / 0.3) 65%, transparent 95%);
 }
 .header-logo {
   font-family: var(--font-display);
@@ -292,7 +332,7 @@ body::before {
   font-size: 20px;
   letter-spacing: 0.32em;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #f0e060, #d4af37 60%, #c09020);
+  background: linear-gradient(135deg, rgb(var(--cyan-rgb) / 0.95), var(--amber) 60%, var(--fg-strong));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -323,8 +363,31 @@ body::before {
 }
 .status-dot.busy {
   background: var(--amber);
-  box-shadow: 0 0 0 3px rgba(212,175,55,0.2);
+  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.24);
   animation: pulse-fast 0.7s ease-in-out infinite;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--amber);
+  background: var(--amber-soft);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: var(--transition);
+}
+.theme-toggle:hover {
+  border-color: var(--amber);
+  color: var(--fg-strong);
+  box-shadow: var(--shadow-sm);
 }
 @keyframes pulse      { 0%,100%{opacity:1} 50%{opacity:0.45} }
 @keyframes pulse-fast { 0%,100%{opacity:1} 50%{opacity:0.35} }
@@ -422,7 +485,7 @@ body::before {
   caret-color: var(--amber);
 }
 .chat-input::placeholder { color: var(--subtle); }
-.chat-input:focus { background: rgba(212,175,55,0.025); }
+.chat-input:focus { background: rgb(var(--amber-rgb) / 0.08); }
 .chat-send {
   background: transparent;
   border: none;
@@ -527,7 +590,7 @@ body::before {
 .param-number:focus {
   outline: none;
   border-color: var(--amber);
-  background: rgba(212,175,55,0.05);
+  background: rgb(var(--amber-rgb) / 0.1);
   box-shadow: 0 0 0 3px var(--amber-soft);
 }
 
@@ -548,7 +611,7 @@ body::before {
 }
 .regime-badge.expansion   { border-color: var(--green);  color: var(--green);  background: rgba(74,222,128,0.06); }
 .regime-badge.recovery    { border-color: var(--cyan);   color: var(--cyan);   background: rgba(168,188,216,0.06); }
-.regime-badge.contraction { border-color: var(--amber);  color: var(--amber);  background: rgba(212,175,55,0.06); }
+.regime-badge.contraction { border-color: var(--amber);  color: var(--amber);  background: rgb(var(--amber-rgb) / 0.1); }
 .regime-badge.crisis      { border-color: var(--red);    color: var(--red);    background: rgba(248,113,113,0.06); }
 .regime-badge.unknown     { border-color: var(--border-strong); color: var(--white-dim); background: var(--bg-elevated); }
 
@@ -635,7 +698,7 @@ body::before {
 
 /* ── Save button ──────────────────────────────────────────── */
 .save-btn {
-  background: rgba(212,175,55,0.06);
+  background: rgb(var(--amber-rgb) / 0.1);
   border: 1px solid var(--border-strong);
   color: var(--amber);
   font-family: var(--font-display);
@@ -651,7 +714,7 @@ body::before {
   box-shadow: var(--shadow-sm);
 }
 .save-btn:hover {
-  background: rgba(212,175,55,0.12);
+  background: rgb(var(--amber-rgb) / 0.18);
   border-color: var(--amber);
   box-shadow: var(--shadow);
 }
@@ -736,7 +799,7 @@ body::before {
 .doc-search::placeholder { color: var(--subtle); }
 .doc-search:focus {
   border-color: var(--amber);
-  background: rgba(212,175,55,0.04);
+  background: rgb(var(--amber-rgb) / 0.08);
   box-shadow: 0 0 0 3px var(--amber-soft);
 }
 

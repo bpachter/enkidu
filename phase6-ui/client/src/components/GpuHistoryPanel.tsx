@@ -11,13 +11,13 @@ import { useStore } from '../store'
 import type { GpuHistoryPoint } from '../store'
 
 const C = {
-  gpu:      { stroke: '#a8bcd8', fill: '#a8bcd810' },
-  vram:     { stroke: '#d4af37', fill: '#d4af3710' },
-  temp:     { stroke: '#f59e0b', fill: '#f59e0b10' },
-  power:    { stroke: '#f87171', fill: '#f8717110' },
-  clock_sm: { stroke: '#c8b4e0', fill: '#c8b4e010' },
-  clock_mem:{ stroke: '#e8d080', fill: '#e8d08010' },
-  cpu:      { stroke: '#94a3b8', fill: '#94a3b810' },
+  gpu:      { stroke: 'var(--cyan)', fill: 'var(--cyan-soft)' },
+  vram:     { stroke: 'var(--amber)', fill: 'var(--amber-soft)' },
+  temp:     { stroke: 'var(--amber)', fill: 'var(--amber-soft)' },
+  power:    { stroke: 'var(--red)', fill: 'color-mix(in srgb, var(--red) 16%, transparent)' },
+  clock_sm: { stroke: 'var(--violet)', fill: 'color-mix(in srgb, var(--violet) 14%, transparent)' },
+  clock_mem:{ stroke: 'var(--amber)', fill: 'var(--amber-soft)' },
+  cpu:      { stroke: 'var(--white-dim)', fill: 'color-mix(in srgb, var(--white-dim) 14%, transparent)' },
 }
 
 function threshold(val: number, warn: number, crit: number): string {

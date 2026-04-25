@@ -1,6 +1,6 @@
 /**
- * Mithrandir — Ancient Gold & Mithril Silver design tokens
- * Dark stone base, antique gold primary, mithril silver secondary.
+ * Mithrandir theme tokens derive from CSS variables in src/index.css
+ * so runtime dark/light switching updates Tailwind utility colors.
  */
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -9,26 +9,45 @@ export default {
     extend: {
       colors: {
         // Surfaces
-        bg:        '#0d0b09',
-        surface:   '#12100d',
-        elevated:  '#1c1914',
-        sunken:    '#080706',
-        border:    '#241f16',
-        'border-strong': '#362e20',
+        bg:        'rgb(var(--bg-rgb, 11 13 16) / <alpha-value>)',
+        surface:   'var(--bg-panel)',
+        elevated:  'var(--bg-elevated)',
+        sunken:    'var(--bg-sunken)',
+        border:    'var(--border)',
+        'border-strong': 'var(--border-strong)',
         // Foreground
-        fg:        '#d4cfc0',
-        muted:     '#7a7060',
-        subtle:    '#3d3628',
+        fg:        'var(--fg)',
+        'fg-strong': 'var(--fg-strong)',
+        muted:     'var(--white-dim)',
+        subtle:    'var(--subtle)',
         // Primary antique gold
-        amber:     { DEFAULT: '#d4af37', soft: '#d4af3712', dim: '#3d2c08', glow: '#d4af3720' },
+        amber:     {
+          DEFAULT: 'rgb(var(--amber-rgb) / <alpha-value>)',
+          soft: 'var(--amber-soft)',
+          dim: 'var(--amber-dim)',
+          glow: 'var(--amber-glow)',
+        },
         // Mithril silver
-        cyan:      { DEFAULT: '#a8bcd8', soft: '#a8bcd810', dim: '#1e2a3d', glow: '#a8bcd820' },
+        cyan:      {
+          DEFAULT: 'rgb(var(--cyan-rgb) / <alpha-value>)',
+          soft: 'var(--cyan-soft)',
+          dim: 'var(--cyan-dim)',
+          glow: 'var(--cyan-glow)',
+        },
         // Success green
-        emerald:   { DEFAULT: '#4ade80', soft: '#4ade8012', dim: '#166534' },
+        emerald:   {
+          DEFAULT: 'var(--green)',
+          soft: 'color-mix(in srgb, var(--green) 12%, transparent)',
+          dim: 'var(--green-dim)',
+        },
         // Error red
-        rose:      { DEFAULT: '#f87171', soft: '#f871711a', dim: '#7f1d1d' },
+        rose:      {
+          DEFAULT: 'var(--red)',
+          soft: 'color-mix(in srgb, var(--red) 12%, transparent)',
+          dim: 'var(--red-dim)',
+        },
         // Accent violet
-        violet:    { DEFAULT: '#a78bfa', soft: '#a78bfa1a' },
+        violet:    { DEFAULT: 'var(--violet)', soft: 'color-mix(in srgb, var(--violet) 12%, transparent)' },
       },
       fontFamily: {
         mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
@@ -55,8 +74,8 @@ export default {
         DEFAULT:    '0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4)',
         md:         '0 4px 16px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4)',
         lg:         '0 8px 28px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4)',
-        panel:      '0 0 0 1px #241f16',
-        'panel-hi': '0 0 0 1px #362e20, 0 4px 16px -4px rgba(212,175,55,0.18)',
+        panel:      '0 0 0 1px var(--border)',
+        'panel-hi': '0 0 0 1px var(--border-strong), 0 4px 16px -4px var(--amber-glow)',
       },
       borderRadius: {
         none: '0',

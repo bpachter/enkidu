@@ -7,11 +7,11 @@ import { fetchRegime, fetchPortfolio } from '../api'
 
 type View = 'table' | 'quality' | 'value'
 
-const BLUE   = '#d4af37'
-const CYAN   = '#a8bcd8'
-const GREEN  = '#4ade80'
-const RED    = '#f87171'
-const DIM    = '#0f0d0a'
+const BLUE   = 'var(--amber)'
+const CYAN   = 'var(--cyan)'
+const GREEN  = 'var(--green)'
+const RED    = 'var(--red)'
+const DIM    = 'var(--amber-soft)'
 
 function scoreColor(s: number) {
   return s >= 70 ? GREEN : s >= 50 ? BLUE : RED
@@ -175,7 +175,7 @@ export default function MarketPanel() {
                 </div>
                 <ResponsiveContainer width="100%" height={qualityData.length * 26 + 20}>
                   <BarChart data={qualityData} layout="vertical" margin={{ left: 4, right: 16, top: 0, bottom: 0 }}>
-                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#556677', fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fill: 'var(--subtle)', fontSize: 9 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="ticker" tick={{ fill: CYAN, fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} width={36} />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: DIM }} />
                     <Bar dataKey="score" radius={[0, 2, 2, 0]}>
@@ -196,7 +196,7 @@ export default function MarketPanel() {
                 </div>
                 <ResponsiveContainer width="100%" height={valueData.length * 26 + 20}>
                   <BarChart data={valueData} layout="vertical" margin={{ left: 4, right: 16, top: 0, bottom: 0 }}>
-                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#556677', fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fill: 'var(--subtle)', fontSize: 9 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="ticker" tick={{ fill: CYAN, fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} width={36} />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: DIM }} />
                     <Bar dataKey="rank" fill={BLUE} radius={[0, 2, 2, 0]} />
