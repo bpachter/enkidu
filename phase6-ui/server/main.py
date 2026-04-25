@@ -845,6 +845,15 @@ async def _stream_processing_prelude(ws: WebSocket, voice, voice_profile: Option
     )
 
 
+async def _play_processing_prelude(ws: WebSocket, voice, voice_profile: Optional[str]) -> None:
+    try:
+        await _stream_processing_prelude(ws, voice, voice_profile)
+    except WebSocketDisconnect:
+        raise
+    except Exception as prelude_exc:
+        logger.warning(f"Processing prelude failed: {prelude_exc}")
+
+
 @app.post("/api/voice")
 def set_voice(body: VoiceSelect):
     """Switch the active TTS voice profile."""
@@ -1020,10 +1029,12 @@ async def ws_chat(ws: WebSocket):
             tts_enabled      = data.get("tts", True)   # client can opt out
             voice_profile_req = _effective_voice_profile(data.get("voice_profile"))
             response_mode = "spoken" if tts_enabled else "visual"
-            prelude_task = None
 
             if tts_enabled and voice and message:
-                prelude_task = asyncio.create_task(_stream_processing_prelude(ws, voice, voice_profile_req))
+                try:
+                    await _play_processing_prelude(ws, voice, voice_profile_req)
+                except WebSocketDisconnect:
+                    return
 
             loop = asyncio.get_running_loop()
             tokens_sent = [0]
@@ -1063,12 +1074,6 @@ async def ws_chat(ws: WebSocket):
                 await ws.send_json({"type": "error", "content": str(e)})
                 await ws.send_json({"type": "done"})
                 continue
-
-            if prelude_task is not None:
-                try:
-                    await prelude_task
-                except Exception as prelude_exc:
-                    logger.warning(f"TTS prelude failed: {prelude_exc}")
 
             spoken_result = _rewrite_for_speech(final_text, user_query=message)
             spoken_text = spoken_result.get("spoken_text", final_text).strip() or final_text
@@ -1220,8 +1225,12 @@ async def ws_voice(ws: WebSocket):
                 continue
 
             await ws.send_json({"type": "transcript", "text": text})
+            if voice and text:
+                try:
+                    await _play_processing_prelude(ws, voice, voice_profile)
+                except WebSocketDisconnect:
+                    return
             await ws.send_json({"type": "status", "content": "Thinking…"})
-            prelude_task = asyncio.create_task(_stream_processing_prelude(ws, voice, voice_profile))
 
             # ── 2. Run agent ───────────────────────────────────────────────
             collected_tokens: list[str] = []
@@ -1256,12 +1265,6 @@ async def ws_voice(ws: WebSocket):
                     await ws.send_json({"type": "error", "content": str(e)})
                     await ws.send_json({"type": "done"})
                     continue
-
-            if prelude_task is not None:
-                try:
-                    await prelude_task
-                except Exception as prelude_exc:
-                    logger.warning(f"Voice prelude failed: {prelude_exc}")
 
             spoken_result = _rewrite_for_speech(final_text, user_query=text)
             spoken_text = spoken_result.get("spoken_text", final_text).strip() or final_text
