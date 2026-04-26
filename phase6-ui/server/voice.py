@@ -1149,9 +1149,23 @@ def _start_stt2_worker() -> bool:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, bufsize=1, env=_stt2_env,
         )
+        # Drain stderr in background — PyTorch prints enough warnings during checkpoint
+        # load to fill the OS pipe buffer (~64 KB) and deadlock the worker.
+        def _drain_stderr():
+            for line in _stt2_proc.stderr:
+                line = line.rstrip()
+                if line:
+                    logger.debug(f"StyleTTS2 stderr: {line}")
+        threading.Thread(target=_drain_stderr, name="stt2-stderr", daemon=True).start()
+
         import time as _time
-        deadline = _time.time() + 120
+        # StyleTTS2 loads 4 sub-models (ASR, F0, PLBERT, decoder) — allow 5 minutes.
+        deadline = _time.time() + 300
         while _time.time() < deadline:
+            if _stt2_proc.poll() is not None:
+                logger.error(f"StyleTTS2 worker exited early (code {_stt2_proc.returncode})")
+                _stt2_ready = False
+                return False
             line = _stt2_proc.stdout.readline().strip()
             if line == "READY":
                 _stt2_ready = True
@@ -1159,7 +1173,7 @@ def _start_stt2_worker() -> bool:
                 return True
             if line:
                 logger.debug(f"StyleTTS2 (startup): {line}")
-        logger.error("StyleTTS2 worker did not become ready within 120s")
+        logger.error("StyleTTS2 worker did not become ready within 300s")
         _stt2_ready = False
         return False
     except Exception as e:

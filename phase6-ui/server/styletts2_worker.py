@@ -63,8 +63,8 @@ def _load_model(checkpoint: Path):
     import torch
     import yaml
     from munch import Munch
-    from models import build_model
-    from utils import load_ASR_models, load_F0_models, recursive_munch
+    from models import build_model, load_ASR_models, load_F0_models
+    from utils import recursive_munch
     from Utils.PLBERT.util import load_plbert
     from text_utils import TextCleaner
     from Modules.diffusion.sampler import DiffusionSampler, ADPM2Sampler, KarrasSchedule
@@ -105,6 +105,10 @@ def _load_model(checkpoint: Path):
         sigma_schedule=KarrasSchedule(sigma_min=0.0001, sigma_max=3.0, rho=9.0),
         clamp=False,
     )
+
+    from phonemizer.backend.espeak.espeak import EspeakWrapper
+    _espeak_lib = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
+    EspeakWrapper.set_library(_espeak_lib)
 
     global_phonemizer = ph_lib.backend.EspeakBackend(
         language="en-us", preserve_punctuation=True, with_stress=True
@@ -227,11 +231,14 @@ def _find_default_ref() -> str | None:
     """Find a usable reference audio: explicit > reference_mithrandir.wav > first training wav."""
     if _DEFAULT_REF.exists():
         return str(_DEFAULT_REF)
-    wav_dir = _TRAINING / "training_data" / "wavs"
-    if wav_dir.exists():
-        wavs = list(wav_dir.rglob("*.wav"))
-        if wavs:
-            return str(sorted(wavs)[0])
+    for wav_dir in [
+        _TRAINING / "training_data" / "wavs",
+        _TRAINING / "elevenlabs_data" / "wavs",
+    ]:
+        if wav_dir.exists():
+            wavs = list(wav_dir.rglob("*.wav"))
+            if wavs:
+                return str(sorted(wavs)[0])
     return None
 
 
