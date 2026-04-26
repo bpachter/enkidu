@@ -35,7 +35,7 @@ export default function App() {
   const pushGpuHistory       = useStore((s) => s.pushGpuHistory)
   const setPendingChatInput  = useStore((s) => s.setPendingChatInput)
   const [leftTab,  setLeftTab]  = useState<LeftTab>('params')
-  const [rightTab, setRightTab] = useState<RightTab>('vault')
+  const [rightTab, setRightTab] = useState<RightTab>('mind')
   const [mode,     setMode]     = useState<AppMode>('terminal')
   const [theme, setTheme] = useState<ThemeMode>(() => {
     // Set attribute synchronously so CelestialBackground reads correct value on mount.
