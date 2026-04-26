@@ -512,8 +512,15 @@ def main():
             completed.append((str(wav_path), text))
             print(f"  [{i+1}/{len(sentences)}] ok  — {wav_path.name}  ({len(text)} chars)")
         except Exception as e:
-            print(f"  [{i+1}/{len(sentences)}] FAILED: {e}")
-            failed.append((i, text, str(e)))
+            err = str(e)
+            print(f"  [{i+1}/{len(sentences)}] FAILED: {err}")
+            failed.append((i, text, err))
+
+            # Do not continue for auth failures: it only spams 401s for every line.
+            if "invalid_api_key" in err or "status_code: 401" in err:
+                print("\nFATAL: ElevenLabs rejected the API key (401 invalid_api_key).")
+                print("Set ELEVENLABS_API_KEY to a valid key and re-run with --resume.")
+                raise SystemExit(1)
 
         # Respect ElevenLabs rate limits
         time.sleep(0.4)

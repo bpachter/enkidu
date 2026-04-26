@@ -85,11 +85,15 @@ function Build-Config(
         throw "Template config not found: $TemplatePath"
     }
 
-    $trainRel = "../" + [System.IO.Path]::GetRelativePath($Repo, $TrainList).Replace('\\', '/')
-    $valRel = "../" + [System.IO.Path]::GetRelativePath($Repo, $ValList).Replace('\\', '/')
-    $ckptRel = "../" + [System.IO.Path]::GetRelativePath($Repo, $CheckpointPath).Replace('\\', '/')
+    $trainRel = [System.IO.Path]::GetRelativePath($Repo, $TrainList).Replace('\', '/')
+    $valRel = [System.IO.Path]::GetRelativePath($Repo, $ValList).Replace('\', '/')
+    $ckptRel = [System.IO.Path]::GetRelativePath($Repo, $CheckpointPath).Replace('\', '/')
 
     $dq = [char]34
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $lrText = $LR.ToString('0.############################', $inv)
+    $bertLrText = $BertLR.ToString('0.############################', $inv)
+    $ftLrText = $FtLR.ToString('0.############################', $inv)
     $lines = Get-Content -Path $TemplatePath
     $out = New-Object System.Collections.Generic.List[string]
 
@@ -113,15 +117,15 @@ function Build-Config(
             continue
         }
         if ($trim.StartsWith('lr:')) {
-            $out.Add("  lr: $LR")
+            $out.Add("  lr: $lrText")
             continue
         }
         if ($trim.StartsWith('bert_lr:')) {
-            $out.Add("  bert_lr: $BertLR")
+            $out.Add("  bert_lr: $bertLrText")
             continue
         }
         if ($trim.StartsWith('ft_lr:')) {
-            $out.Add("  ft_lr: $FtLR")
+            $out.Add("  ft_lr: $ftLrText")
             continue
         }
 

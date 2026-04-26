@@ -33,6 +33,7 @@ interface PerspectiveCloud {
   puffs:        number   // puffs per tier (horizontal width)
   tiers:        number   // vertical layers (creates the cumulonimbus tower)
   puffSpread:   number   // lateral puff spread factor
+  storminess:   number   // occasional darker rain-bearing clouds
   phase:        number   // per-cloud variety phase
 }
 
@@ -53,15 +54,16 @@ function buildPerspectiveClouds(count: number): PerspectiveCloud[] {
     angle:        (i / count) * Math.PI * 2 + (Math.random() * 0.40 - 0.20),
     initialPhase: Math.random(),
     speed:        0.009 + Math.random() * 0.014,   // slow — 70-110 s per traversal
-    baseSize:     0.20  + Math.random() * 0.42,    // massive — cumulonimbus towers
+    baseSize:     0.24  + Math.random() * 0.46,    // bigger + wider cumulonimbus masses
     opacity:      0.58  + Math.random() * 0.35,
-    puffs:        5     + Math.floor(Math.random() * 5),   // per tier
+    puffs:        7     + Math.floor(Math.random() * 5),   // wider silhouette per tier
     tiers:        3     + Math.floor(Math.random() * 3),   // 3–5 vertical layers
-    puffSpread:   0.55  + Math.random() * 0.45,
+    puffSpread:   0.78  + Math.random() * 0.56,
+    storminess:   Math.random(),
     phase:        Math.random() * Math.PI * 2,
   }))
 }
-const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(36)
+const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(32)
 
 // ── night nebulae ──────────────────────────────────────────────
 const NIGHT_NEBULAE: NebulaVol[] = [
@@ -392,35 +394,26 @@ export default function CelestialBackground() {
 
           // Cloud grows with z (tiny at centre, large as it passes)
           const cloudR = cloud.baseSize * Math.min(W, H) * (0.04 + 0.96 * z)
+          const cloudWidth = 1.25 + 0.62 * z
 
           // Tangent direction for lateral (horizontal) puff spread
           const tx = -Math.sin(cloud.angle)
           const ty =  Math.cos(cloud.angle)
-
-          // ── Flat dark base (cumulonimbus rain-shelf underside) ──
-          const baseAlpha = bellOp * 0.38
-          const baseCY    = sy + cloudR * 0.42
-          const baseGrad  = ctx.createRadialGradient(sx, baseCY, 0, sx, baseCY, cloudR * 1.3)
-          baseGrad.addColorStop(0,    `rgba(148,162,182,${baseAlpha.toFixed(3)})`)
-          baseGrad.addColorStop(0.55, `rgba(158,172,190,${(baseAlpha * 0.52).toFixed(3)})`)
-          baseGrad.addColorStop(1,    'rgba(168,182,200,0)')
-          ctx.fillStyle = baseGrad
-          ctx.beginPath()
-          ctx.ellipse(sx, baseCY, cloudR * 1.3, cloudR * 0.28, 0, 0, Math.PI * 2)
-          ctx.fill()
 
           // ── Vertical tower of puff tiers (grey base → bright white apex) ──
           for (let tier = 0; tier < cloud.tiers; tier++) {
             const tierFrac  = cloud.tiers > 1 ? tier / (cloud.tiers - 1) : 0  // 0=base 1=apex
             const tierOffY  = -cloudR * (tierFrac * 1.75 + 0.05)   // tower grows upward
             const tierTaper = 1.0 - 0.40 * tierFrac                 // narrower at top
-            const tierPuffs = Math.max(3, Math.round(cloud.puffs * tierTaper))
+            const tierPuffs = Math.max(4, Math.round(cloud.puffs * tierTaper * cloudWidth))
 
             for (let i = 0; i < tierPuffs; i++) {
               const frac     = tierPuffs > 1 ? i / (tierPuffs - 1) - 0.5 : 0
-              const undulate = Math.sin(t * 0.045 + cloud.phase + i * 1.1 + tier * 2.3) * cloudR * 0.035
-              const puffX    = sx + tx * frac * cloud.puffSpread * cloudR * 2.0 * tierTaper
-              const puffY    = sy + ty * frac * cloud.puffSpread * cloudR * 0.22 + tierOffY + undulate
+              const undulate = Math.sin(t * 0.050 + cloud.phase + i * 1.1 + tier * 2.3) * cloudR * 0.040
+              const gustX    = Math.sin(t * 0.030 + cloud.phase * 1.7 + tier * 0.8) * cloudR * 0.10
+              const heaveY   = Math.sin(t * 0.040 + cloud.phase * 1.2 + i * 0.35) * cloudR * 0.05
+              const puffX    = sx + tx * frac * cloud.puffSpread * cloudR * 2.2 * tierTaper * cloudWidth + gustX
+              const puffY    = sy + ty * frac * cloud.puffSpread * cloudR * 0.24 + tierOffY + undulate + heaveY
 
               const bell2  = Math.max(0, 1.0 - Math.abs(frac) * 1.65)
               // Upper tiers have bigger, rounder puffs (cauliflower dome at apex)
@@ -428,14 +421,16 @@ export default function CelestialBackground() {
               if (puffR < 1) continue
               const puffOp = bellOp * (0.58 + 0.42 * bell2) * (0.72 + 0.28 * tierFrac)
 
-              // Shade: steely grey at base → pure bright white at apex
+              // Shade: brighter body (no dark under-oval shading), still allowing rainy variants.
               const w  = 0.50 + 0.50 * tierFrac
-              const cR = Math.round(lerp(172, 255, w))
-              const cG = Math.round(lerp(182, 255, w))
-              const cB = Math.round(lerp(198, 255, w))
-              const eR = Math.round(lerp(150, 225, w))
-              const eG = Math.round(lerp(163, 235, w))
-              const eB = Math.round(lerp(180, 248, w))
+              const rainCloud = cloud.storminess > 0.68
+              const rainTint = rainCloud ? 1 : 0
+              const cR = Math.round(lerp(202, 255, w) - 12 * rainTint)
+              const cG = Math.round(lerp(214, 255, w) - 14 * rainTint)
+              const cB = Math.round(lerp(232, 255, w) - 18 * rainTint)
+              const eR = Math.round(lerp(188, 238, w) - 8 * rainTint)
+              const eG = Math.round(lerp(201, 244, w) - 10 * rainTint)
+              const eB = Math.round(lerp(220, 250, w) - 14 * rainTint)
 
               // Highlight shifted upward so each blob looks lit from above
               const wg = ctx.createRadialGradient(puffX, puffY - puffR * 0.18, 0, puffX, puffY, puffR)
@@ -445,6 +440,24 @@ export default function CelestialBackground() {
               wg.addColorStop(1,    'rgba(200,215,235,0)')
               ctx.fillStyle = wg
               ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2); ctx.fill()
+            }
+          }
+
+          // Occasional rain shafts under darker clouds (no ground shadow ovals).
+          if (cloud.storminess > 0.68 && z > 0.22 && z < 0.90) {
+            const rainAlpha = bellOp * (cloud.storminess - 0.68) * 1.8
+            const streaks = 6 + Math.floor(cloudWidth * 5)
+            ctx.strokeStyle = `rgba(120,146,182,${Math.min(0.26, rainAlpha).toFixed(3)})`
+            ctx.lineWidth = Math.max(0.8, cloudR * 0.006)
+            for (let r = 0; r < streaks; r++) {
+              const frac = streaks > 1 ? r / (streaks - 1) - 0.5 : 0
+              const dropX = sx + tx * frac * cloudR * 1.65 * cloudWidth
+              const dropY = sy + cloudR * (0.22 + Math.random() * 0.22)
+              const len = cloudR * (0.16 + 0.18 * Math.random())
+              ctx.beginPath()
+              ctx.moveTo(dropX, dropY)
+              ctx.lineTo(dropX - tx * len * 0.24, dropY + len)
+              ctx.stroke()
             }
           }
         }
