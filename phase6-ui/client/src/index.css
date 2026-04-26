@@ -1526,6 +1526,261 @@ html[data-chat-awake] body:not([data-modal-open]) .col-chat :is(.panel-title, .c
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* ── Mind Panel ────────────────────────────────────────────── */
+.mind-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.mind-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mind-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(100,160,220,0.5);
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+.mind-pulse-active {
+  background: rgba(100,200,255,0.95);
+  box-shadow: 0 0 8px rgba(100,200,255,0.6);
+}
+.mind-header-title {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fg-strong);
+  flex: 1;
+}
+.mind-depth-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--white-dim);
+  letter-spacing: 0.04em;
+}
+.mind-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.mind-section {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.mind-section-label {
+  font-family: var(--font-display);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--white-dim);
+  margin-bottom: 8px;
+}
+.mind-depth-grid {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+.mind-stat-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mind-stat-val {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fg-strong);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.mind-stat-key {
+  font-family: var(--font-display);
+  font-size: 7.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--white-dim);
+}
+.mind-born {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--white-dim);
+  font-style: italic;
+  margin-top: 4px;
+}
+/* Topic map */
+.mind-topic-map {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mind-topic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mind-topic-term {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg);
+  width: 80px;
+  flex-shrink: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.mind-topic-bar-wrap {
+  flex: 1;
+  height: 3px;
+  background: rgba(120,140,180,0.14);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.mind-topic-bar {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(100,160,230,0.6), rgba(130,190,255,0.4));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+.mind-topic-count {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--white-dim);
+  width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+}
+/* Insights */
+.mind-insights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mind-insight-card {
+  border-left: 2px solid rgba(100,160,220,0.22);
+  padding: 7px 9px;
+  cursor: pointer;
+  transition: all var(--transition);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.mind-insight-card:hover {
+  border-left-color: rgba(100,180,255,0.6);
+  background: rgba(100,160,230,0.05);
+}
+.mind-insight-card.expanded {
+  border-left-color: rgba(100,180,255,0.7);
+  background: rgba(100,160,230,0.07);
+}
+.mind-insight-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+.mind-insight-star {
+  color: rgba(220,190,100,0.80);
+  font-size: 9px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.mind-insight-q {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg);
+  flex: 1;
+  line-height: 1.5;
+}
+.mind-insight-age {
+  font-family: var(--font-display);
+  font-size: 7.5px;
+  color: var(--white-dim);
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.mind-insight-body {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--white-dim);
+  line-height: 1.6;
+  margin-top: 7px;
+  border-top: 1px solid var(--border);
+  padding-top: 7px;
+  white-space: pre-wrap;
+}
+/* Recent stream */
+.mind-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mind-stream-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.mind-stream-age {
+  font-family: var(--font-display);
+  font-size: 7.5px;
+  color: var(--white-dim);
+  flex-shrink: 0;
+  width: 46px;
+  padding-top: 1px;
+  letter-spacing: 0.04em;
+}
+.mind-stream-msg {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg);
+  line-height: 1.45;
+  flex: 1;
+}
+.mind-offline {
+  padding: 24px 14px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--white-dim);
+  text-align: center;
+}
+
+/* Light-mode overrides for MindPanel */
+:root:not([data-theme='dark']) .mind-header-title,
+:root:not([data-theme='dark']) .mind-stat-val,
+:root:not([data-theme='dark']) .mind-insight-q,
+:root:not([data-theme='dark']) .mind-stream-msg,
+:root:not([data-theme='dark']) .mind-topic-term {
+  color: rgba(28, 46, 72, 0.96);
+}
+:root:not([data-theme='dark']) .mind-stat-key,
+:root:not([data-theme='dark']) .mind-section-label,
+:root:not([data-theme='dark']) .mind-born,
+:root:not([data-theme='dark']) .mind-depth-badge,
+:root:not([data-theme='dark']) .mind-insight-age,
+:root:not([data-theme='dark']) .mind-stream-age,
+:root:not([data-theme='dark']) .mind-topic-count,
+:root:not([data-theme='dark']) .mind-insight-body,
+:root:not([data-theme='dark']) .mind-offline {
+  color: rgba(68, 88, 114, 0.84);
+}
+:root:not([data-theme='dark']) .mind-topic-bar-wrap {
+  background: rgba(100,140,190,0.16);
+}
+:root:not([data-theme='dark']) .mind-insight-card:hover,
+:root:not([data-theme='dark']) .mind-insight-card.expanded {
+  background: rgba(180, 210, 246, 0.28);
+}
+
 /* ── Speech animation: wizard-of-oz ambient glow ─────────────── */
 :root { --speech-energy: 0; }
 [data-speaking] .col-chat {

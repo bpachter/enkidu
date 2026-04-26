@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings2, BookText, Code2, Moon, Sun } from 'lucide-react'
+import { Settings2, BookText, Code2, Moon, Sun, BrainCircuit, Archive } from 'lucide-react'
 import CelestialBackground from './components/CelestialBackground'
 import ChatPanel        from './components/ChatPanel'
 import GpuHistoryPanel  from './components/GpuHistoryPanel'
 import ModelParamsPanel from './components/ModelParamsPanel'
 import MemoryPanel      from './components/MemoryPanel'
+import MindPanel        from './components/MindPanel'
 import DocsPanel        from './components/DocsPanel'
 import SitingPanel      from './components/SitingPanel'
 import DevPanel         from './components/DevPanel'
 import { useStore }     from './store'
 import { createGpuSocket } from './api'
 
-type LeftTab = 'params' | 'docs'
-type AppMode = 'terminal' | 'avalon' | 'dev'
+type LeftTab  = 'params' | 'docs'
+type RightTab = 'vault' | 'mind'
+type AppMode  = 'terminal' | 'avalon' | 'dev'
 type ThemeMode = 'dark' | 'light'
 
 function getEstHour(): number {
@@ -32,8 +34,9 @@ export default function App() {
   const setGpuStats          = useStore((s) => s.setGpuStats)
   const pushGpuHistory       = useStore((s) => s.pushGpuHistory)
   const setPendingChatInput  = useStore((s) => s.setPendingChatInput)
-  const [leftTab, setLeftTab] = useState<LeftTab>('params')
-  const [mode,    setMode]    = useState<AppMode>('terminal')
+  const [leftTab,  setLeftTab]  = useState<LeftTab>('params')
+  const [rightTab, setRightTab] = useState<RightTab>('vault')
+  const [mode,     setMode]     = useState<AppMode>('terminal')
   const [theme, setTheme] = useState<ThemeMode>(() => {
     // Set attribute synchronously so CelestialBackground reads correct value on mount.
     const t = themeForTime()
@@ -205,10 +208,38 @@ export default function App() {
         <ChatPanel />
       </div>
 
-      {/* Right column: Context Vault */}
+      {/* Right column: Context Vault / Mind */}
       <div className="col-right">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <MemoryPanel />
+        <div className="tab-bar">
+          <button
+            className={`tab-btn ${rightTab === 'vault' ? 'active' : ''}`}
+            onClick={() => setRightTab('vault')}
+          >
+            <Archive className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
+            Vault
+          </button>
+          <button
+            className={`tab-btn ${rightTab === 'mind' ? 'active' : ''}`}
+            onClick={() => setRightTab('mind')}
+          >
+            <BrainCircuit className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
+            Mind
+          </button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={rightTab}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+              style={{ height: '100%' }}
+            >
+              {rightTab === 'vault' && <MemoryPanel />}
+              {rightTab === 'mind'  && <MindPanel />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>

@@ -95,6 +95,10 @@ export async function fetchMemory(): Promise<AnyJson> {
   return fetchJsonWithRetry<AnyJson>(`${API_BASE}/api/memory`, 'memory')
 }
 
+export async function fetchMind(): Promise<AnyJson> {
+  return fetchJsonWithRetry<AnyJson>(`${API_BASE}/api/mind`, 'mind')
+}
+
 export async function rateMemory(id: string, rating: number | null): Promise<void> {
   const r = await fetch(`${API_BASE}/api/memory/${id}/rate`, {
     method: 'POST',
