@@ -1601,12 +1601,12 @@ html[data-chat-awake] body:not([data-modal-open]) .col-chat :is(.panel-title, .c
 }
 /* Brain hemispheres */
 .mind-hemi {
-  fill: rgba(100, 160, 220, 0.04);
-  stroke: rgba(172, 216, 255, 0.70);
-  stroke-width: 2.2;
+  fill: rgba(80, 140, 210, 0.08);
+  stroke: rgba(180, 220, 255, 0.82);
+  stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 7px rgba(140, 200, 255, 0.38));
+  filter: drop-shadow(0 0 8px rgba(140, 200, 255, 0.48)) drop-shadow(0 0 14px rgba(100, 170, 240, 0.24));
 }
 /* Midline */
 .mind-sulcus {
@@ -1623,17 +1623,18 @@ html[data-chat-awake] body:not([data-modal-open]) .col-chat :is(.panel-title, .c
 }
 /* Major sulci — deeper, more prominent */
 .mind-fold-major {
-  stroke: rgba(140, 190, 255, 0.54);
-  stroke-width: 1.4;
+  stroke: rgba(140, 190, 255, 0.68);
+  stroke-width: 1.6;
+  filter: drop-shadow(0 0 2px rgba(120, 180, 255, 0.35));
 }
 /* Cerebellum — smaller rounded structure */
 .mind-cerebellum {
-  fill: rgba(90, 150, 230, 0.06);
-  stroke: rgba(160, 200, 255, 0.62);
+  fill: rgba(70, 130, 200, 0.10);
+  stroke: rgba(170, 210, 255, 0.75);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 4px rgba(130, 190, 255, 0.28));
+  filter: drop-shadow(0 0 6px rgba(130, 190, 255, 0.42)) drop-shadow(0 0 10px rgba(100, 160, 240, 0.18));
 }
 /* Brainstem — connector path */
 .mind-brainstem {
