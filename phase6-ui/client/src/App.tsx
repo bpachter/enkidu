@@ -60,8 +60,13 @@ export default function App() {
     return () => ws.close()
   }, [setGpuStats, pushGpuHistory])
 
+  // Keep data-theme in sync; set data-transitioning so CSS color transitions fire
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
+    const el = document.documentElement
+    el.setAttribute('data-theme', theme)
+    el.setAttribute('data-transitioning', '')
+    const tid = setTimeout(() => el.removeAttribute('data-transitioning'), 4500)
+    return () => { clearTimeout(tid); el.removeAttribute('data-transitioning') }
   }, [theme])
 
   // Auto-switch at 7 AM and 6 PM EST — polls every 30 s, smooth canvas handles the visual fade

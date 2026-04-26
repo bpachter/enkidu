@@ -7,6 +7,8 @@ interface Star {
   baseOpacity: number
   twinkleSpeed: number
   twinklePhase: number
+  glintFreq: number     // rare bright-flash frequency
+  glintPhase: number
   color: [number, number, number]
   isHero: boolean
 }
@@ -23,80 +25,43 @@ interface NebulaVol {
 }
 
 interface CloudWisp {
-  x0: number
-  y: number
-  w: number
-  h: number
-  opacity: number
-  speed: number
-  puffs: number
-  undulate: number
-  phase: number
+  x0: number; y: number
+  w: number; h: number
+  opacity: number; speed: number
+  puffs: number; undulate: number; phase: number
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t
-}
+// ── helpers ────────────────────────────────────────────────────
+function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
 
-function lerpRGB(
-  n: [number, number, number],
-  d: [number, number, number],
-  t: number,
-): string {
+function lerpRGB(n: [number, number, number], d: [number, number, number], t: number): string {
   return `rgb(${Math.round(lerp(n[0], d[0], t))},${Math.round(lerp(n[1], d[1], t))},${Math.round(lerp(n[2], d[2], t))})`
 }
 
-function lerpRGBA(
-  n: [number, number, number, number],
-  d: [number, number, number, number],
-  t: number,
-): string {
+function lerpRGBA(n: [number, number, number, number], d: [number, number, number, number], t: number): string {
   return `rgba(${Math.round(lerp(n[0], d[0], t))},${Math.round(lerp(n[1], d[1], t))},${Math.round(lerp(n[2], d[2], t))},${lerp(n[3], d[3], t).toFixed(3)})`
 }
 
-// Far, mid, and near cloud layers — each drifts left at different speeds for parallax depth.
+// ── cloud wisp table ───────────────────────────────────────────
 const CLOUD_WISPS: CloudWisp[] = [
-  // Far layer — thin, slow, many
+  // Far layer
   { x0: 0.05, y: 0.10, w: 0.50, h: 0.042, opacity: 0.55, speed: 0.036, puffs:  7, undulate: 0.006, phase: 0.0 },
   { x0: 0.45, y: 0.24, w: 0.44, h: 0.038, opacity: 0.50, speed: 0.033, puffs:  6, undulate: 0.005, phase: 1.3 },
   { x0: 0.82, y: 0.70, w: 0.48, h: 0.040, opacity: 0.48, speed: 0.039, puffs:  6, undulate: 0.006, phase: 2.6 },
   { x0: 0.22, y: 0.56, w: 0.40, h: 0.036, opacity: 0.46, speed: 0.031, puffs:  5, undulate: 0.005, phase: 4.1 },
   { x0: 0.65, y: 0.38, w: 0.52, h: 0.042, opacity: 0.52, speed: 0.037, puffs:  7, undulate: 0.006, phase: 5.5 },
-  // Mid layer — broader, medium speed
+  // Mid layer
   { x0: 0.15, y: 0.18, w: 0.68, h: 0.070, opacity: 0.60, speed: 0.064, puffs:  9, undulate: 0.010, phase: 0.7 },
   { x0: 0.60, y: 0.50, w: 0.62, h: 0.065, opacity: 0.56, speed: 0.070, puffs:  8, undulate: 0.011, phase: 2.2 },
   { x0: 0.90, y: 0.30, w: 0.72, h: 0.075, opacity: 0.58, speed: 0.060, puffs: 10, undulate: 0.009, phase: 3.8 },
   { x0: 0.35, y: 0.78, w: 0.60, h: 0.068, opacity: 0.50, speed: 0.072, puffs:  8, undulate: 0.011, phase: 5.0 },
-  // Near layer — large, faster, more diffuse
+  // Near layer
   { x0: 0.25, y: 0.06, w: 0.88, h: 0.130, opacity: 0.38, speed: 0.128, puffs: 12, undulate: 0.015, phase: 1.5 },
   { x0: 0.70, y: 0.88, w: 0.82, h: 0.125, opacity: 0.34, speed: 0.136, puffs: 11, undulate: 0.017, phase: 4.0 },
   { x0: 0.50, y: 0.46, w: 0.76, h: 0.118, opacity: 0.36, speed: 0.120, puffs: 11, undulate: 0.014, phase: 6.5 },
 ]
 
-function buildStars(count: number): Star[] {
-  return Array.from({ length: count }, () => {
-    const roll = Math.random()
-    const isHero = roll > 0.88
-    const isMid  = roll > 0.55
-    const cRoll = Math.random()
-    let color: [number, number, number]
-    if      (cRoll > 0.82) color = [255, 244, 206]
-    else if (cRoll > 0.62) color = [225, 238, 255]
-    else if (cRoll > 0.42) color = [236, 246, 255]
-    else                   color = [250, 252, 255]
-    return {
-      x:            Math.random(),
-      y:            Math.random(),
-      radius:       isHero ? 1.1 + Math.random() * 0.7 : isMid ? 0.55 + Math.random() * 0.45 : 0.25 + Math.random() * 0.30,
-      baseOpacity:  isHero ? 0.70 + Math.random() * 0.30 : 0.28 + Math.random() * 0.52,
-      twinkleSpeed: 0.35 + Math.random() * 1.60,
-      twinklePhase: Math.random() * Math.PI * 2,
-      color,
-      isHero,
-    }
-  })
-}
-
+// ── night nebulae ──────────────────────────────────────────────
 const NIGHT_NEBULAE: NebulaVol[] = [
   { cx: 0.12, cy: 0.08, rx: 0.58, ry: 0.46, r: 40,  g: 98,  b: 170, opacity: 0.26,
     driftAmpX: 0.022, driftAmpY: 0.018, driftFreqX: 0.15, driftFreqY: 0.11, breatheAmp: 0.18, phase: 0.0 },
@@ -112,10 +77,162 @@ const NIGHT_NEBULAE: NebulaVol[] = [
     driftAmpX: 0.011, driftAmpY: 0.014, driftFreqX: 0.18, driftFreqY: 0.16, breatheAmp: 0.14, phase: 4.3 },
 ]
 
-const STARS = buildStars(160)
+// ── star field ─────────────────────────────────────────────────
+function buildStars(count: number): Star[] {
+  return Array.from({ length: count }, () => {
+    const roll = Math.random()
+    const isHero = roll > 0.88
+    const isMid  = roll > 0.55
+    const cRoll = Math.random()
+    let color: [number, number, number]
+    if      (cRoll > 0.82) color = [255, 244, 206]   // warm gold
+    else if (cRoll > 0.62) color = [225, 238, 255]   // blue-white
+    else if (cRoll > 0.42) color = [236, 246, 255]   // cool white
+    else                   color = [250, 252, 255]   // pure white
+    return {
+      x:            Math.random(),
+      y:            Math.random(),
+      radius:       isHero ? 1.1 + Math.random() * 0.8 : isMid ? 0.55 + Math.random() * 0.45 : 0.22 + Math.random() * 0.32,
+      baseOpacity:  isHero ? 0.70 + Math.random() * 0.30 : 0.28 + Math.random() * 0.52,
+      twinkleSpeed: 0.55 + Math.random() * 2.20,     // faster than before for livelier scintillation
+      twinklePhase: Math.random() * Math.PI * 2,
+      glintFreq:    0.010 + Math.random() * 0.018,   // one glint cycle every 60-120 s
+      glintPhase:   Math.random() * Math.PI * 2,
+      color,
+      isHero,
+    }
+  })
+}
+
+const STARS = buildStars(180)
+
+// ── galaxy (pre-rendered off-screen canvas, built once) ────────
+function buildGalaxyCanvas(): HTMLCanvasElement {
+  const gc = document.createElement('canvas')
+  gc.width = 800; gc.height = 800
+  const gx = gc.getContext('2d')!
+  const cx = 400; const cy = 400
+  const R  = 280      // galaxy radius in canvas pixels
+  const AR = 0.38     // Y-axis compression (edge-on tilt)
+
+  // Outer halo
+  const halo = gx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.65)
+  halo.addColorStop(0,   'rgba(155, 175, 245, 0.22)')
+  halo.addColorStop(0.45,'rgba(125, 150, 228, 0.12)')
+  halo.addColorStop(0.80,'rgba(100, 128, 212, 0.05)')
+  halo.addColorStop(1,   'rgba( 80, 108, 198, 0)')
+  gx.fillStyle = halo
+  gx.beginPath(); gx.arc(cx, cy, R * 1.65, 0, Math.PI * 2); gx.fill()
+
+  // Galactic disk — elliptically compressed
+  gx.save()
+  gx.translate(cx, cy)
+  gx.scale(1, AR)
+  const disk = gx.createRadialGradient(0, 0, 0, 0, 0, R)
+  disk.addColorStop(0,    'rgba(242, 244, 255, 0.78)')
+  disk.addColorStop(0.07, 'rgba(215, 228, 255, 0.56)')
+  disk.addColorStop(0.20, 'rgba(188, 208, 252, 0.34)')
+  disk.addColorStop(0.42, 'rgba(160, 183, 240, 0.18)')
+  disk.addColorStop(0.68, 'rgba(135, 160, 228, 0.08)')
+  disk.addColorStop(1,    'rgba(105, 133, 210, 0)')
+  gx.fillStyle = disk
+  gx.beginPath(); gx.arc(0, 0, R, 0, Math.PI * 2); gx.fill()
+  gx.restore()
+
+  // Spiral arms — 2 arms offset by π, logarithmic spiral r = a·e^(k·θ)
+  for (let arm = 0; arm < 2; arm++) {
+    const armBase = arm * Math.PI + 0.28
+    const nBlobs  = 75
+    for (let i = 0; i < nBlobs; i++) {
+      const frac  = i / (nBlobs - 1)
+      const theta = 0.50 + frac * 2.85 * Math.PI
+      const r     = 0.065 * Math.exp(0.27 * theta) * R
+      const px    = cx + r * Math.cos(theta + armBase)
+      const py    = cy + r * Math.sin(theta + armBase) * AR
+
+      const blobR = R * (0.038 + 0.062 * frac + (Math.random() - 0.5) * 0.012)
+      const blobOp = frac < 0.12
+        ? (frac / 0.12) * 0.82
+        : (1 - (frac - 0.12) / 0.88 * 0.48) * 0.82
+
+      const grad = gx.createRadialGradient(px, py, 0, px, py, blobR)
+      grad.addColorStop(0,    `rgba(218, 233, 255, ${blobOp.toFixed(2)})`)
+      grad.addColorStop(0.32, `rgba(188, 210, 252, ${(blobOp * 0.58).toFixed(2)})`)
+      grad.addColorStop(0.68, `rgba(158, 185, 240, ${(blobOp * 0.20).toFixed(2)})`)
+      grad.addColorStop(1,    'rgba(128, 160, 222, 0)')
+      gx.fillStyle = grad
+      gx.beginPath(); gx.arc(px, py, blobR, 0, Math.PI * 2); gx.fill()
+    }
+  }
+
+  // 900 micro-stars — Gaussian disk distribution
+  for (let i = 0; i < 900; i++) {
+    const rr = ((Math.random() + Math.random()) / 2) * R * 0.90
+    const th = Math.random() * Math.PI * 2
+    const px = cx + rr * Math.cos(th)
+    const py = cy + rr * Math.sin(th) * AR
+    const op = 0.12 + Math.random() * 0.72
+    const sz = 0.25 + Math.random() * 1.30
+    gx.fillStyle = `rgba(212,222,255,${op.toFixed(2)})`
+    gx.beginPath(); gx.arc(px, py, sz, 0, Math.PI * 2); gx.fill()
+  }
+
+  // Dust lane — dark equatorial band across the disk
+  gx.save()
+  gx.translate(cx, cy)
+  gx.scale(1, AR)
+  const dust = gx.createLinearGradient(0, -R * 0.065, 0, R * 0.065)
+  dust.addColorStop(0,   'rgba(0, 2, 14, 0)')
+  dust.addColorStop(0.28,'rgba(0, 2, 14, 0.30)')
+  dust.addColorStop(0.50,'rgba(0, 2, 14, 0.45)')
+  dust.addColorStop(0.72,'rgba(0, 2, 14, 0.30)')
+  dust.addColorStop(1,   'rgba(0, 2, 14, 0)')
+  gx.fillStyle = dust
+  gx.fillRect(-R * 1.05, -R * 0.065, R * 2.10, R * 0.130)
+  gx.restore()
+
+  // Secondary thinner dust lane (slight offset for realism)
+  gx.save()
+  gx.translate(cx + R * 0.08, cy - R * 0.015 * AR)
+  gx.scale(1, AR)
+  const dust2 = gx.createLinearGradient(0, -R * 0.030, 0, R * 0.030)
+  dust2.addColorStop(0,   'rgba(0, 2, 14, 0)')
+  dust2.addColorStop(0.5, 'rgba(0, 2, 14, 0.18)')
+  dust2.addColorStop(1,   'rgba(0, 2, 14, 0)')
+  gx.fillStyle = dust2
+  gx.fillRect(-R * 0.60, -R * 0.030, R * 1.20, R * 0.060)
+  gx.restore()
+
+  // Central bulge — warm yellowish nuclear region
+  gx.save()
+  gx.translate(cx, cy)
+  gx.scale(1, AR * 1.55)  // slightly more circular than disk
+  const core = gx.createRadialGradient(0, 0, 0, 0, 0, R * 0.24)
+  core.addColorStop(0,    'rgba(255, 252, 230, 0.96)')
+  core.addColorStop(0.14, 'rgba(255, 242, 210, 0.84)')
+  core.addColorStop(0.38, 'rgba(248, 228, 185, 0.58)')
+  core.addColorStop(0.65, 'rgba(232, 210, 158, 0.30)')
+  core.addColorStop(1,    'rgba(205, 180, 125, 0)')
+  gx.fillStyle = core
+  gx.beginPath(); gx.arc(0, 0, R * 0.24, 0, Math.PI * 2); gx.fill()
+  gx.restore()
+
+  // Nucleus point source
+  gx.save()
+  gx.translate(cx, cy)
+  const nucleus = gx.createRadialGradient(0, 0, 0, 0, 0, R * 0.045)
+  nucleus.addColorStop(0,   'rgba(255, 255, 248, 1.00)')
+  nucleus.addColorStop(0.3, 'rgba(255, 250, 230, 0.90)')
+  nucleus.addColorStop(1,   'rgba(255, 240, 200, 0)')
+  gx.fillStyle = nucleus
+  gx.beginPath(); gx.arc(0, 0, R * 0.045, 0, Math.PI * 2); gx.fill()
+  gx.restore()
+
+  return gc
+}
 
 export default function CelestialBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef       = useRef<HTMLCanvasElement>(null)
   const speechEnergyRef = useRef(0)
 
   useEffect(() => {
@@ -125,13 +242,16 @@ export default function CelestialBackground() {
     const ctx = canvas.getContext('2d')!
     const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2))
 
-    // Read theme set synchronously by App.tsx's useState initializer — no flash.
-    const initialProgress = document.documentElement.getAttribute('data-theme') === 'dark' ? 0 : 1
-    const themeProgressRef = { current: initialProgress }
-    const themeTargetRef   = { current: initialProgress }
+    // Read theme set synchronously by App.tsx's useState initializer
+    const init = document.documentElement.getAttribute('data-theme') === 'dark' ? 0 : 1
+    const themeProgress = { current: init }
+    const themeTarget   = { current: init }
+
+    // Galaxy canvas — built lazily on first dark frame, reused thereafter
+    let galaxyCanvas: HTMLCanvasElement | null = null
 
     const resize = () => {
-      canvas.width  = Math.floor(window.innerWidth * dpr)
+      canvas.width  = Math.floor(window.innerWidth  * dpr)
       canvas.height = Math.floor(window.innerHeight * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
@@ -139,7 +259,7 @@ export default function CelestialBackground() {
     window.addEventListener('resize', resize)
 
     const themeObserver = new MutationObserver(() => {
-      themeTargetRef.current = document.documentElement.getAttribute('data-theme') === 'dark' ? 0 : 1
+      themeTarget.current = document.documentElement.getAttribute('data-theme') === 'dark' ? 0 : 1
     })
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
@@ -149,171 +269,216 @@ export default function CelestialBackground() {
     const draw = () => {
       frameId = requestAnimationFrame(draw)
       t += 0.008
-      const speechBoost = speechEnergyRef.current
+      const speech = speechEnergyRef.current
       const W = canvas.width / dpr
       const H = canvas.height / dpr
 
-      // ── Smooth theme transition: ~4s linear at 60fps (0.004/frame) ──
-      const diff = themeTargetRef.current - themeProgressRef.current
+      // ── Smooth theme lerp: ~4 s linear at 60 fps ──────────────
+      const diff = themeTarget.current - themeProgress.current
       if (Math.abs(diff) > 0.0005) {
-        themeProgressRef.current += Math.sign(diff) * Math.min(Math.abs(diff), 0.004)
+        themeProgress.current += Math.sign(diff) * Math.min(Math.abs(diff), 0.004)
       }
-      const p = themeProgressRef.current  // 0 = full night, 1 = full day
+      const p = themeProgress.current   // 0 = full night, 1 = full day
 
-      // ── Sky gradient: lerp night→day stops ────────────────────
+      // ── Sky gradient: lerp night → day ─────────────────────────
       ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
       const sky = ctx.createLinearGradient(0, 0, 0, H)
-      sky.addColorStop(0.00, lerpRGB([6, 22, 43],   [96, 105, 114], p))
-      sky.addColorStop(0.36, lerpRGB([3, 16, 34],   [114, 124, 134], p))
-      sky.addColorStop(0.70, lerpRGB([2, 12, 26],   [146, 156, 167], p))
-      sky.addColorStop(1.00, lerpRGB([1,  7, 19],   [168, 177, 187], p))
+      sky.addColorStop(0.00, lerpRGB([6,22,43],   [96,105,114], p))
+      sky.addColorStop(0.36, lerpRGB([3,16,34],   [114,124,134], p))
+      sky.addColorStop(0.70, lerpRGB([2,12,26],   [146,156,167], p))
+      sky.addColorStop(1.00, lerpRGB([1,7,19],    [168,177,187], p))
       ctx.fillStyle = sky
       ctx.fillRect(0, 0, W, H)
 
-      // ── Night: celestial blue bloom (fades as day rises) ──────
-      const nightBloomOp = 0.14 * (1 - p)
-      if (nightBloomOp > 0.001) {
-        const bloom = ctx.createRadialGradient(W * 0.58, H * 0.06, H * 0.03, W * 0.5, H * 0.2, H * 0.7)
-        bloom.addColorStop(0, `rgba(126,182,244,${nightBloomOp.toFixed(3)})`)
-        bloom.addColorStop(1, 'rgba(126,182,244,0)')
-        ctx.fillStyle = bloom
-        ctx.fillRect(0, 0, W, H)
+      // ── Night: faint blue bloom ────────────────────────────────
+      const nbOp = 0.14 * (1 - p)
+      if (nbOp > 0.001) {
+        const nb = ctx.createRadialGradient(W*0.58, H*0.06, H*0.03, W*0.5, H*0.2, H*0.7)
+        nb.addColorStop(0, `rgba(126,182,244,${nbOp.toFixed(3)})`)
+        nb.addColorStop(1, 'rgba(126,182,244,0)')
+        ctx.fillStyle = nb; ctx.fillRect(0, 0, W, H)
       }
 
-      // ── Day: heavenly light (rises with p) ────────────────────
+      // ── Day: heavenly light ────────────────────────────────────
       if (p > 0.001) {
-        const heavenPulse = 0.88 + 0.12 * Math.sin(t * 0.22)
-        const speechGlow  = 1 + speechBoost * 0.70
+        const pulse = 0.88 + 0.12 * Math.sin(t * 0.22)
+        const sg    = 1 + speech * 0.70
 
-        const bloom = ctx.createRadialGradient(W * 0.50, H * 0.16, H * 0.02, W * 0.50, H * 0.34, H * 0.78)
-        bloom.addColorStop(0,    `rgba(255,255,255,${Math.min(0.90, 0.48 * heavenPulse * speechGlow * p).toFixed(3)})`)
-        bloom.addColorStop(0.35, `rgba(246,249,255,${Math.min(0.55, 0.23 * heavenPulse * speechGlow * p).toFixed(3)})`)
+        const bloom = ctx.createRadialGradient(W*0.50, H*0.16, H*0.02, W*0.50, H*0.34, H*0.78)
+        bloom.addColorStop(0,    `rgba(255,255,255,${Math.min(0.90, 0.48*pulse*sg*p).toFixed(3)})`)
+        bloom.addColorStop(0.35, `rgba(246,249,255,${Math.min(0.55, 0.23*pulse*sg*p).toFixed(3)})`)
         bloom.addColorStop(1,    'rgba(255,255,255,0)')
-        ctx.fillStyle = bloom
-        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = bloom; ctx.fillRect(0, 0, W, H)
 
-        const shaft = ctx.createLinearGradient(W * 0.30, 0, W * 0.70, 0)
+        const shaft = ctx.createLinearGradient(W*0.30, 0, W*0.70, 0)
         shaft.addColorStop(0.00, 'rgba(255,255,255,0)')
-        shaft.addColorStop(0.38, `rgba(245,249,255,${Math.min(0.22, 0.06 * heavenPulse * speechGlow * p).toFixed(3)})`)
-        shaft.addColorStop(0.50, `rgba(255,255,255,${Math.min(0.45, 0.14 * heavenPulse * speechGlow * p).toFixed(3)})`)
-        shaft.addColorStop(0.62, `rgba(245,249,255,${Math.min(0.22, 0.06 * heavenPulse * speechGlow * p).toFixed(3)})`)
+        shaft.addColorStop(0.38, `rgba(245,249,255,${Math.min(0.22, 0.06*pulse*sg*p).toFixed(3)})`)
+        shaft.addColorStop(0.50, `rgba(255,255,255,${Math.min(0.45, 0.14*pulse*sg*p).toFixed(3)})`)
+        shaft.addColorStop(0.62, `rgba(245,249,255,${Math.min(0.22, 0.06*pulse*sg*p).toFixed(3)})`)
         shaft.addColorStop(1.00, 'rgba(255,255,255,0)')
-        ctx.fillStyle = shaft
-        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = shaft; ctx.fillRect(0, 0, W, H)
 
-        const aureole = ctx.createRadialGradient(W * 0.5, H * 0.12, H * 0.01, W * 0.5, H * 0.12, H * 0.18)
-        aureole.addColorStop(0, `rgba(255,255,255,${Math.min(0.80, 0.34 * heavenPulse * speechGlow * p).toFixed(3)})`)
-        aureole.addColorStop(1, 'rgba(255,255,255,0)')
-        ctx.fillStyle = aureole
-        ctx.fillRect(0, 0, W, H)
+        const aur = ctx.createRadialGradient(W*0.5, H*0.12, H*0.01, W*0.5, H*0.12, H*0.18)
+        aur.addColorStop(0, `rgba(255,255,255,${Math.min(0.80, 0.34*pulse*sg*p).toFixed(3)})`)
+        aur.addColorStop(1, 'rgba(255,255,255,0)')
+        ctx.fillStyle = aur; ctx.fillRect(0, 0, W, H)
       }
 
-      // ── Night: additive nebula volumes (dissolve into day) ────
+      // ── Night: additive nebula volumes ─────────────────────────
       if (p < 0.999) {
         ctx.globalCompositeOperation = 'lighter'
         for (const neb of NIGHT_NEBULAE) {
           const breathe = 1 + neb.breatheAmp * Math.sin(t * 0.4 + neb.phase)
-          const cx = (neb.cx + neb.driftAmpX * Math.sin(t * neb.driftFreqX + neb.phase)) * W
-          const cy = (neb.cy + neb.driftAmpY * Math.cos(t * neb.driftFreqY + neb.phase)) * H
-          const rx = neb.rx * W
-          const ry = neb.ry * W
-          const op = Math.min(neb.opacity * breathe, 0.54) * (1 - p)
+          const ncx = (neb.cx + neb.driftAmpX * Math.sin(t * neb.driftFreqX + neb.phase)) * W
+          const ncy = (neb.cy + neb.driftAmpY * Math.cos(t * neb.driftFreqY + neb.phase)) * H
+          const rx  = neb.rx * W
+          const ry  = neb.ry * W
+          const op  = Math.min(neb.opacity * breathe, 0.54) * (1 - p)
           if (op < 0.001) continue
-          const speechNebBoost = 1 + speechBoost * 0.35
+          const snb = 1 + speech * 0.35
 
           ctx.save()
-          ctx.translate(cx, cy)
+          ctx.translate(ncx, ncy)
           ctx.scale(1, ry / rx)
-
-          const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx)
-          grad.addColorStop(0,    `rgba(${neb.r},${neb.g},${neb.b},${Math.min(0.72, op * speechNebBoost * 0.85).toFixed(3)})`)
-          grad.addColorStop(0.38, `rgba(${neb.r},${neb.g},${neb.b},${Math.min(0.44, op * speechNebBoost * 0.50).toFixed(3)})`)
-          grad.addColorStop(0.72, `rgba(${neb.r},${neb.g},${neb.b},${Math.min(0.16, op * speechNebBoost * 0.18).toFixed(3)})`)
-          grad.addColorStop(1,    `rgba(${neb.r},${neb.g},${neb.b},0)`)
-
-          ctx.fillStyle = grad
-          ctx.beginPath()
-          ctx.arc(0, 0, rx, 0, Math.PI * 2)
-          ctx.fill()
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx)
+          g.addColorStop(0,    `rgba(${neb.r},${neb.g},${neb.b},${Math.min(0.72, op*snb*0.85).toFixed(3)})`)
+          g.addColorStop(0.38, `rgba(${neb.r},${neb.g},${neb.b},${Math.min(0.44, op*snb*0.50).toFixed(3)})`)
+          g.addColorStop(0.72, `rgba(${neb.r},${neb.g},${neb.b},${Math.min(0.16, op*snb*0.18).toFixed(3)})`)
+          g.addColorStop(1,    `rgba(${neb.r},${neb.g},${neb.b},0)`)
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI*2); ctx.fill()
           ctx.restore()
         }
       }
 
-      // ── Day: parallax cloud wisps (materialize with p) ────────
+      // ── Night: spiral galaxy (screen-blended, pre-rendered) ────
+      if (p < 0.92) {
+        if (!galaxyCanvas) galaxyCanvas = buildGalaxyCanvas()
+        const gOp = Math.pow(Math.max(0, 1 - p / 0.85), 2.2) * 0.058
+        if (gOp > 0.0005) {
+          const GCX = W * 0.700; const GCY = H * 0.200
+          const targetR = Math.min(W, H) * 0.175   // galaxy radius on screen
+          const scale   = targetR / 280             // 280 = galaxy canvas radius
+          ctx.save()
+          ctx.globalCompositeOperation = 'screen'
+          ctx.globalAlpha = gOp
+          ctx.translate(GCX, GCY)
+          ctx.rotate(t * 0.000055)                  // imperceptibly slow rotation
+          ctx.scale(scale, scale)
+          ctx.drawImage(galaxyCanvas, -400, -400)   // 800×800 → center at (0,0)
+          ctx.restore()
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ── Day: parallax cloud wisps ──────────────────────────────
       if (p > 0.001) {
         ctx.globalCompositeOperation = 'source-over'
         for (const wisp of CLOUD_WISPS) {
           const period   = 1.0 + wisp.w + 0.12
           const rawPhase = (wisp.x0 * period + wisp.speed * t) % period
           const wispCx   = (1.0 + wisp.w / 2 + 0.06 - rawPhase) * W
-          if (wispCx + wisp.w * W * 0.5 < 0 || wispCx - wisp.w * W * 0.5 > W) continue
+          if (wispCx + wisp.w*W*0.5 < 0 || wispCx - wisp.w*W*0.5 > W) continue
 
           for (let i = 0; i < wisp.puffs; i++) {
-            const frac   = wisp.puffs > 1 ? i / (wisp.puffs - 1) : 0.5
-            const puffX  = wispCx + (frac - 0.5) * wisp.w * W
-            if (puffX < -wisp.h * W * 2 || puffX > W + wisp.h * W * 2) continue
+            const frac  = wisp.puffs > 1 ? i / (wisp.puffs - 1) : 0.5
+            const puffX = wispCx + (frac - 0.5) * wisp.w * W
+            if (puffX < -wisp.h*W*2 || puffX > W + wisp.h*W*2) continue
 
-            const puffY  = wisp.y * H + wisp.undulate * H * Math.sin(t * 0.14 + wisp.phase + frac * Math.PI * 2.5)
+            const puffY  = wisp.y*H + wisp.undulate*H*Math.sin(t*0.14 + wisp.phase + frac*Math.PI*2.5)
             const bell   = Math.sin(frac * Math.PI)
             const puffR  = wisp.h * W * (0.48 + 0.80 * bell)
             const puffOp = wisp.opacity * (0.38 + 0.62 * bell) * p
 
-            const toneMix = 0.5 + 0.5 * Math.sin(wisp.phase + frac * Math.PI * 3.0 + t * 0.03)
-            const coreR = Math.round(220 + 35 * toneMix)
-            const coreG = Math.round(224 + 31 * toneMix)
-            const coreB = Math.round(230 + 25 * toneMix)
-            const midR  = Math.round(198 + 42 * toneMix)
-            const midG  = Math.round(204 + 40 * toneMix)
-            const midB  = Math.round(214 + 36 * toneMix)
+            const mix  = 0.5 + 0.5 * Math.sin(wisp.phase + frac*Math.PI*3.0 + t*0.03)
+            const cR = Math.round(220 + 35*mix); const cG = Math.round(224 + 31*mix); const cB = Math.round(230 + 25*mix)
+            const mR = Math.round(198 + 42*mix); const mG = Math.round(204 + 40*mix); const mB = Math.round(214 + 36*mix)
 
-            const grad = ctx.createRadialGradient(puffX, puffY, 0, puffX, puffY, puffR)
-            grad.addColorStop(0,    `rgba(${coreR},${coreG},${coreB},${(puffOp * 0.94).toFixed(3)})`)
-            grad.addColorStop(0.32, `rgba(${midR},${midG},${midB},${(puffOp * 0.66).toFixed(3)})`)
-            grad.addColorStop(0.64, `rgba(${midR},${midG},${midB},${(puffOp * 0.22).toFixed(3)})`)
-            grad.addColorStop(1,    'rgba(228,234,242,0)')
-
-            ctx.fillStyle = grad
-            ctx.beginPath()
-            ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2)
-            ctx.fill()
+            const wg = ctx.createRadialGradient(puffX, puffY, 0, puffX, puffY, puffR)
+            wg.addColorStop(0,    `rgba(${cR},${cG},${cB},${(puffOp*0.94).toFixed(3)})`)
+            wg.addColorStop(0.32, `rgba(${mR},${mG},${mB},${(puffOp*0.66).toFixed(3)})`)
+            wg.addColorStop(0.64, `rgba(${mR},${mG},${mB},${(puffOp*0.22).toFixed(3)})`)
+            wg.addColorStop(1,    'rgba(228,234,242,0)')
+            ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI*2); ctx.fill()
           }
         }
       }
 
-      // ── Stars: lerp starScale night→day (fade during day) ─────
+      // ── Stars: multi-freq twinkle, glints, diffraction spikes ──
       ctx.globalCompositeOperation = 'source-over'
       const starScale = lerp(1.0, 0.35, p)
+
       for (const star of STARS) {
-        const twinkle = 0.55 + 0.45 * Math.sin(t * star.twinkleSpeed + star.twinklePhase)
-        const op = Math.min(star.baseOpacity * (0.65 + 0.35 * twinkle) * starScale, 1.0)
+        // Multi-frequency scintillation (primary + 2.4× harmonic)
+        const f1 = Math.sin(t * star.twinkleSpeed + star.twinklePhase)
+        const f2 = Math.sin(t * star.twinkleSpeed * 2.42 + star.twinklePhase * 1.37) * 0.38
+        const twinkle = 0.5 + 0.5 * ((f1 + f2) / 1.38)
+
+        // Rare glint flash — sharpened sin^28 so only the crest fires
+        const glintRaw = Math.max(0, Math.sin(t * star.glintFreq + star.glintPhase))
+        const glint    = star.isHero ? Math.pow(glintRaw, 28) : 0
+
+        const baseOp = star.baseOpacity * (0.50 + 0.50 * twinkle) * starScale
+        const op     = Math.min(baseOp + glint * 0.75, 1.0)
+        if (op < 0.01) continue
+
         const x = star.x * W
         const y = star.y * H
         const [r, g, b] = star.color
 
+        // Radius breathes slightly with twinkle (atmospheric scintillation)
+        const rad = star.isHero
+          ? star.radius * (0.82 + 0.18 * twinkle)
+          : star.radius
+
+        // ── Hero star: soft halo ──────────────────────────────
         if (star.isHero) {
-          const halo = ctx.createRadialGradient(x, y, 0, x, y, star.radius * 5)
-          halo.addColorStop(0,   `rgba(${r},${g},${b},${(op * 0.35).toFixed(3)})`)
-          halo.addColorStop(0.5, `rgba(${r},${g},${b},${(op * 0.12).toFixed(3)})`)
+          const haloR = rad * (5.5 + 2.0 * twinkle + glint * 3.0)
+          const halo = ctx.createRadialGradient(x, y, 0, x, y, haloR)
+          halo.addColorStop(0,   `rgba(${r},${g},${b},${(op * 0.38).toFixed(3)})`)
+          halo.addColorStop(0.45,`rgba(${r},${g},${b},${(op * 0.12).toFixed(3)})`)
           halo.addColorStop(1,   `rgba(${r},${g},${b},0)`)
           ctx.fillStyle = halo
-          ctx.beginPath()
-          ctx.arc(x, y, star.radius * 5, 0, Math.PI * 2)
-          ctx.fill()
+          ctx.beginPath(); ctx.arc(x, y, haloR, 0, Math.PI*2); ctx.fill()
+
+          // Diffraction spike cross — elongates on glint/bright twinkle
+          const spikeLen = rad * (4.5 + 3.5 * twinkle + glint * 6.0) * starScale
+          const spikeOp  = Math.min(0.55, op * 0.28 * twinkle * twinkle + glint * 0.40)
+          if (spikeOp > 0.02) {
+            ctx.strokeStyle = `rgba(${r},${g},${b},${spikeOp.toFixed(3)})`
+            ctx.lineWidth = 0.55
+            ctx.lineCap = 'round'
+            ctx.beginPath()
+            // Primary axes
+            ctx.moveTo(x - spikeLen, y); ctx.lineTo(x + spikeLen, y)
+            ctx.moveTo(x, y - spikeLen); ctx.lineTo(x, y + spikeLen)
+            // Diagonal axes at 60% length
+            const d = spikeLen * 0.62
+            ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d)
+            ctx.moveTo(x - d, y + d); ctx.lineTo(x + d, y - d)
+            ctx.stroke()
+          }
+        } else if (op > 0.45) {
+          // Dim halo for mid-tier stars when bright enough
+          const halo = ctx.createRadialGradient(x, y, 0, x, y, rad * 3.5)
+          halo.addColorStop(0, `rgba(${r},${g},${b},${(op * 0.18).toFixed(3)})`)
+          halo.addColorStop(1, `rgba(${r},${g},${b},0)`)
+          ctx.fillStyle = halo
+          ctx.beginPath(); ctx.arc(x, y, rad * 3.5, 0, Math.PI*2); ctx.fill()
         }
 
+        // Star core
         ctx.fillStyle = `rgba(${r},${g},${b},${op.toFixed(3)})`
-        ctx.beginPath()
-        ctx.arc(x, y, star.radius, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.beginPath(); ctx.arc(x, y, Math.max(rad, 0.25), 0, Math.PI*2); ctx.fill()
       }
 
-      // ── Atmospheric veil: lerp night→day tone ─────────────────
+      // ── Atmospheric veil: lerp night→day ──────────────────────
       ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
       const veil = ctx.createLinearGradient(0, 0, 0, H)
       veil.addColorStop(0, 'rgba(0,0,0,0)')
-      veil.addColorStop(1, lerpRGBA([0, 6, 16, 0.26], [72, 80, 92, 0.22], p))
-      ctx.fillStyle = veil
-      ctx.fillRect(0, 0, W, H)
+      veil.addColorStop(1, lerpRGBA([0,6,16,0.26], [72,80,92,0.22], p))
+      ctx.fillStyle = veil; ctx.fillRect(0, 0, W, H)
     }
 
     draw()
@@ -328,15 +493,7 @@ export default function CelestialBackground() {
   return (
     <canvas
       ref={canvasRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width:  '100%',
-        height: '100%',
-        zIndex: 0,
-        pointerEvents: 'none',
-        display: 'block',
-      }}
+      style={{ position:'fixed', inset:0, width:'100%', height:'100%', zIndex:0, pointerEvents:'none', display:'block' }}
     />
   )
 }
