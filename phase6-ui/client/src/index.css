@@ -736,11 +736,11 @@ html, body, #root {
   font-size: 10px;
   color: rgba(52,211,153,0.70);
   padding: 2px 4px;
-  font-style: italic;
+  padding: 0 2px;
   letter-spacing: 0.04em;
 }
 .msg-step::before { content: '⟩ '; opacity: 0.6; }
-.msg-typing {
+  transition: max-height 200ms ease, opacity 200ms ease, padding-bottom 200ms ease;
   color: var(--amber);
   font-size: 22px;
   letter-spacing: 6px;
@@ -943,6 +943,21 @@ html[data-chat-awake] body:not([data-modal-open]) .col-chat :is(.panel-title, .c
   color: rgba(51, 67, 88, 0.94);
 }
 
+/* ── HW bar day-mode readability ──────────────────────────── */
+:root:not([data-theme='dark']) .hw-cell-label {
+  color: rgba(30, 48, 70, 0.82) !important;
+}
+:root:not([data-theme='dark']) .hw-cell-sub {
+  color: rgba(40, 62, 88, 0.72) !important;
+}
+/* Darken inline-colored value text and spark lines via CSS filter */
+:root:not([data-theme='dark']) .hw-cell-value {
+  filter: saturate(1.8) brightness(0.52);
+}
+:root:not([data-theme='dark']) .hw-cell-spark {
+  filter: saturate(2.0) brightness(0.52);
+}
+
 .col-left:hover :is(.panel-title, .panel-body, .tab-bar, .tab-btn, .param-label, .param-value, .param-desc, .save-btn, .doc-search, .doc-cat-tab, .doc-card, .doc-card-title, .doc-card-summary),
 .col-chat:hover :is(.panel-title, .chat-messages, .msg-label, .msg-bubble, .chat-input-row, .chat-prefix, .chat-input, .chat-send),
 .col-right:hover :is(.panel-title, .ticker-table, .metric-value, .dim, .tab, .tab-btn),
@@ -1008,13 +1023,13 @@ html[data-chat-awake] body:not([data-modal-open]) .col-chat :is(.panel-title, .c
   font-size: 10px;
   color: var(--subtle);
   line-height: 1.5;
-  padding: 0 2px 6px;
+  padding: 0 2px;
   max-height: 0;
   overflow: hidden;
   opacity: 0;
-  transition: max-height 200ms ease, opacity 200ms ease;
+  transition: max-height 200ms ease, opacity 200ms ease, padding-bottom 200ms ease;
 }
-.param-row-wrap:hover .param-desc { max-height: 56px; opacity: 1; }
+.param-row-wrap:hover .param-desc { max-height: 80px; opacity: 1; padding-bottom: 6px; }
 .param-slider {
   -webkit-appearance: none; appearance: none;
   height: 3px;
