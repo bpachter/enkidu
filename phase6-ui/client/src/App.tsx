@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Map as MapIcon, Settings2, BookText, Code2, Moon, Sun } from 'lucide-react'
-import Header           from './components/Header'
+import CelestialBackground from './components/CelestialBackground'
 import ChatPanel        from './components/ChatPanel'
 import GpuHistoryPanel  from './components/GpuHistoryPanel'
 import ModelParamsPanel from './components/ModelParamsPanel'
-import MarketPanel      from './components/MarketPanel'
 import MemoryPanel      from './components/MemoryPanel'
 import DocsPanel        from './components/DocsPanel'
 import SitingPanel      from './components/SitingPanel'
@@ -24,8 +23,9 @@ export default function App() {
   const [leftTab, setLeftTab] = useState<LeftTab>('params')
   const [mode,    setMode]    = useState<AppMode>('terminal')
   const [theme, setTheme] = useState<ThemeMode>(() => {
-    if (typeof window === 'undefined') return 'dark'
-    return window.localStorage.getItem('mithrandir-theme') === 'light' ? 'light' : 'dark'
+    if (typeof window === 'undefined') return 'light'
+    const saved = window.localStorage.getItem('mithrandir-theme')
+    return saved === 'dark' || saved === 'light' ? saved : 'light'
   })
 
   // GPU WebSocket lives here — always connected regardless of which panel is visible.
@@ -61,23 +61,26 @@ export default function App() {
   }
 
   return (
-    <div className="app-grid">
-      <Header />
-
+    <>
+    <CelestialBackground />
+    <div className="sky-layer sky-stars sky-stars-a" aria-hidden="true" />
+    <div className="sky-layer sky-stars sky-stars-b" aria-hidden="true" />
+    <div className="sky-layer sky-aurora" aria-hidden="true" />
+    <div className="app-grid app-grid-shell">
       <button
         onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        title={theme === 'dark' ? 'Switch to Gandalf the White (light)' : 'Switch to Gandalf the Grey (dark)'}
+        title={theme === 'dark' ? 'Switch to day mode' : 'Switch to night mode'}
         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
         className="theme-toggle fixed top-2 right-3 z-50"
       >
         {theme === 'dark' ? <Sun className="h-3 w-3" strokeWidth={2.3} /> : <Moon className="h-3 w-3" strokeWidth={2.3} />}
-        {theme === 'dark' ? 'White' : 'Grey'}
+        {theme === 'dark' ? 'Day' : 'Night'}
       </button>
 
-      {/* Avalon launch button — pinned to header */}
+      {/* Avalon launch button */}
       <button
         onClick={() => setMode('avalon')}
-        title="Open Avalon, the realm-map for datacenter siting"
+        title="Open Atlas, the datacenter siting command map"
         className="
           group fixed top-2 right-[130px] z-50
           inline-flex items-center gap-2 rounded-sm border border-cyan-dim bg-cyan-soft
@@ -88,7 +91,7 @@ export default function App() {
         "
       >
         <MapIcon className="h-3 w-3" strokeWidth={2.4} />
-        Avalon
+        Atlas
       </button>
 
       {/* Dev panel launch button */}
@@ -153,20 +156,15 @@ export default function App() {
       {/* Center column: Chat + Memory */}
       <div className="col-chat">
         <ChatPanel />
-        <div
-          className="border-t border-border overflow-hidden flex flex-col flex-shrink-0"
-          style={{ height: 180 }}
-        >
+      </div>
+
+      {/* Right column: Context Vault */}
+      <div className="col-right">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <MemoryPanel />
         </div>
       </div>
-
-      {/* Right column: Market intelligence */}
-      <div className="col-right">
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <MarketPanel />
-        </div>
-      </div>
     </div>
+    </>
   )
 }

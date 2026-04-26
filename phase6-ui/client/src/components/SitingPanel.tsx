@@ -177,7 +177,7 @@ export default function SitingPanel({ onClose }: Props) {
         display: 'flex', alignItems: 'center', gap: 16, padding: '0 16px',
         background: '#060810', borderBottom: '1px solid var(--border)',
       }}>
-        <span className="header-logo" style={{ color: 'var(--cyan)' }}>AVALON</span>
+        <span className="header-logo" style={{ color: 'var(--cyan)' }}>ATLAS</span>
         <span className="header-meta">DATACENTER SITING · {implementedCount}/{factors.length} factors live</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 10, color: 'var(--white-dim)', letterSpacing: '0.1em' }}>ARCHETYPE</span>

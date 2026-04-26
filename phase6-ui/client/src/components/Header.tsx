@@ -29,17 +29,17 @@ export default function Header() {
   return (
     <header className="app-header panel">
       <span className="header-logo">MITHRANDIR</span>
-      <span className="hidden h-5 w-px bg-border md:inline-block" />
-      <div className="hidden items-center gap-2 text-2xs uppercase tracking-[0.18em] text-muted md:flex">
-        <span className="font-display font-semibold text-fg-strong">v8.0</span>
-        <span className="text-subtle">·</span>
-        <span>THE GREY</span>
-        <span className="text-subtle">·</span>
+      <span className="hidden h-4 w-px md:inline-block" style={{ background: 'var(--border-strong)' }} />
+      <div className="header-meta hidden items-center gap-2 md:flex">
+        <span style={{ color: 'var(--fg-strong)', fontWeight: 700 }}>v8.0</span>
+        <span style={{ color: 'var(--subtle)' }}>·</span>
+        <span>SOVEREIGN MODE</span>
+        <span style={{ color: 'var(--subtle)' }}>·</span>
         <span>RTX 4090</span>
-        <span className="text-subtle">·</span>
+        <span style={{ color: 'var(--subtle)' }}>·</span>
         <span className="tabular">{date}</span>
-        <span className="text-subtle">·</span>
-        <span className="tabular text-cyan">{time}Z</span>
+        <span style={{ color: 'var(--subtle)' }}>·</span>
+        <span className="tabular" style={{ color: 'var(--cyan)' }}>{time}Z</span>
       </div>
 
       {regime && (
@@ -83,7 +83,7 @@ export default function Header() {
         <StatusDot tone={busy ? 'amber' : 'green'} />
         <span className="font-display font-medium">
           <Activity className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
-          {busy ? 'IN COUNCIL' : 'AT WATCH'}
+          {busy ? 'REASONING' : 'GUARDIAN ACTIVE'}
         </span>
       </div>
     </header>

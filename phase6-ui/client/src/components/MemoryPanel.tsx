@@ -84,7 +84,7 @@ export default function MemoryPanel() {
 
       {/* Title row */}
       <div className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <span>ARCHIVE OF REMEMBRANCE</span>
+        <span>CONTEXT VAULT</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {unlocked && (
             <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--amber-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}>↺</button>
@@ -92,7 +92,7 @@ export default function MemoryPanel() {
           <button
             onClick={() => { if (unlocked) { setUnlocked(false) } else { setShowInput((s) => !s); setPwError(false) } }}
             style={{ background: 'none', border: 'none', color: unlocked ? 'var(--green)' : 'var(--amber-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}
-            title={unlocked ? 'Seal archive' : 'Unseal archive'}
+            title={unlocked ? 'Lock vault' : 'Unlock vault'}
           >
             {unlocked ? '🔓' : '🔒'}
           </button>
@@ -120,7 +120,7 @@ export default function MemoryPanel() {
             onClick={handleUnlockAttempt}
             style={{ background: 'var(--amber-dim)', border: 'none', color: '#000', fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', cursor: 'pointer', letterSpacing: '0.08em' }}
           >
-            UNSEAL
+            UNLOCK
           </button>
         </div>
       )}
@@ -128,7 +128,7 @@ export default function MemoryPanel() {
       {/* Locked placeholder */}
       {!unlocked && !showInput && (
         <div className="dim" style={{ fontSize: 11, padding: '8px 12px', flexShrink: 0 }}>
-          {stats?.total ?? 0} entries · click the seal to unbar the archive
+          {stats?.total ?? 0} entries · unlock to view stored context
         </div>
       )}
 

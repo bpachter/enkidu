@@ -29,7 +29,8 @@ echo Training for 50 epochs (~3-5 hours on RTX 4090).
 echo.
 
 cd /d "%REPO%"
-%PYTHON% train_finetune_accelerate.py --config "%HERE%finetune_elevenlabs.yml"
+%PYTHON% train_finetune_accelerate.py --config_path "%HERE%finetune_elevenlabs.yml"
+REM Note: must run from styletts2_repo/ so ../elevenlabs_data/ resolves correctly
 
 echo.
 echo Training complete. Checkpoint in %HERE%logs\mithrandir_elevenlabs\

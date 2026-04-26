@@ -118,11 +118,11 @@ export default function ModelParamsPanel() {
 
   return (
     <div className="panel" style={{ minHeight: 0, overflow: 'auto' }}>
-      <div className="panel-title">WILL & TEMPER</div>
+      <div className="panel-title">INFERENCE CORE</div>
       <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 
         <div style={{ fontSize: 9, color: 'var(--white-dim)', marginBottom: 4, lineHeight: 1.5 }}>
-          Each slider shapes Mithrandir&apos;s tone, caution, and memory span.
+          Each slider tunes Mithrandir&apos;s reasoning profile, caution, and memory span.
           Values are forwarded directly to Gemma 4 through Ollama.
         </div>
 
@@ -140,7 +140,7 @@ export default function ModelParamsPanel() {
           onClick={handleSave}
           style={{ marginTop: 8 }}
         >
-          {saved ? 'SEALED ✓' : 'SEAL SETTINGS'}
+          {saved ? 'PROFILE SAVED ✓' : 'SAVE PROFILE'}
         </button>
       </div>
     </div>

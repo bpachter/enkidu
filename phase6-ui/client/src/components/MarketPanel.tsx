@@ -75,7 +75,7 @@ export default function MarketPanel() {
 
   return (
     <div className="panel" style={{ minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div className="panel-title">MARKET PALANTIR</div>
+      <div className="panel-title">MARKET INTELLIGENCE</div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
 
         {/* ── Regime ── */}
@@ -113,7 +113,7 @@ export default function MarketPanel() {
               </div>
             </>
           ) : (
-            <div className="dim" style={{ fontSize: 11 }}>reading the market winds...</div>
+            <div className="dim" style={{ fontSize: 11 }}>synchronizing market telemetry...</div>
           )}
         </div>
 

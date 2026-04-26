@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore } from '../store'
 import { createChatSocket, API_BASE, submitSpeechFeedback, wsBase } from '../api'
+import { setSpeechAnalyser, subscribeSpeechEnergy } from '../lib/speechEnergy'
 
 // ── Chat WebSocket (module-level singleton) ───────────────────────────────
 
@@ -83,6 +84,7 @@ const SILENCE_THRESHOLD   = 0.008
 const SILENCE_DURATION_MS = 900
 const MIN_SPEECH_MS       = 400
 const VAD_POLL_MS         = 80
+const CHAT_AWAKE_MS       = 3 * 60 * 1000
 
 // ── Audio helpers ─────────────────────────────────────────────────────────
 
@@ -176,8 +178,18 @@ async function playAudio(b64: string, _fmt: string = 'wav'): Promise<void> {
         try {
           const src = ctx.createBufferSource()
           src.buffer = buf
-          src.connect(ctx.destination)
-          src.onended = () => { console.log('[mithrandir-audio] playback ended'); resolve() }
+          // ── Speech energy: connect analyser for ambient animation ──
+          const analyser = ctx.createAnalyser()
+          analyser.fftSize = 512
+          analyser.smoothingTimeConstant = 0.75
+          src.connect(analyser)
+          analyser.connect(ctx.destination)
+          setSpeechAnalyser(analyser)
+          src.onended = () => {
+            setSpeechAnalyser(null)
+            console.log('[mithrandir-audio] playback ended')
+            resolve()
+          }
           src.start(0)
           console.log('[mithrandir-audio] src.start(0) called — audio should be playing')
         } catch (e) {
@@ -280,9 +292,9 @@ function Waveform({ analyser, mode }: { analyser: AnalyserNode | null; mode: Wav
 
         // Glow under-fill
         const fill = ctx.createLinearGradient(0, 0, 0, H)
-        fill.addColorStop(0, '#ff1a4000')
-        fill.addColorStop(0.5, '#ff1a4022')
-        fill.addColorStop(1, '#ff1a4000')
+        fill.addColorStop(0,   'rgba(124,58,237,0)')
+        fill.addColorStop(0.5, 'rgba(56,189,248,0.18)')
+        fill.addColorStop(1,   'rgba(224,201,119,0)')
         ctx.fillStyle = fill
         ctx.beginPath()
         ctx.moveTo(0, H / 2)
@@ -295,11 +307,15 @@ function Waveform({ analyser, mode }: { analyser: AnalyserNode | null; mode: Wav
         ctx.closePath()
         ctx.fill()
 
-        // Main waveform line
-        ctx.strokeStyle = '#ff1a40dd'
-        ctx.lineWidth = 1.5
-        ctx.shadowColor = '#ff1a40'
-        ctx.shadowBlur = 6
+        // Main waveform line — aurora violet/cyan
+        const recGrad = ctx.createLinearGradient(0, 0, W, 0)
+        recGrad.addColorStop(0,   'rgba(124,58,237,0.88)')
+        recGrad.addColorStop(0.5, 'rgba(56,189,248,0.96)')
+        recGrad.addColorStop(1,   'rgba(224,201,119,0.86)')
+        ctx.strokeStyle = recGrad
+        ctx.lineWidth = 1.6
+        ctx.shadowColor = '#7c3aed'
+        ctx.shadowBlur = 9
         ctx.beginPath()
         for (let i = 0; i < time.length; i++) {
           const x = (i / (time.length - 1)) * W
@@ -330,30 +346,51 @@ function Waveform({ analyser, mode }: { analyser: AnalyserNode | null; mode: Wav
         ctx.beginPath(); ctx.arc(x, H / 2, 12, 0, Math.PI * 2); ctx.fill()
 
       } else if (mode === 'speaking') {
-        // ── Animated sine wave ────────────────────────────────────────────
+        // ── Aurora sine wave (violet → azure) ────────────────────────────
         phaseRef.current += 0.08
-        ctx.strokeStyle = '#39d35388'
-        ctx.lineWidth = 1.5
+        const t = phaseRef.current
+        // Primary wave — violet
+        const grad1 = ctx.createLinearGradient(0, 0, W, 0)
+        grad1.addColorStop(0,    '#7c3aed99')
+        grad1.addColorStop(0.4,  '#818cf8cc')
+        grad1.addColorStop(0.75, '#38bdf8aa')
+        grad1.addColorStop(1,    '#7c3aed99')
+        ctx.strokeStyle = grad1
+        ctx.lineWidth = 1.8
+        ctx.shadowColor = '#818cf8'
+        ctx.shadowBlur = 6
         ctx.beginPath()
         for (let x = 0; x < W; x++) {
-          const y = H / 2 + Math.sin((x / W) * Math.PI * 6 + phaseRef.current) * (H * 0.3)
+          const y = H / 2 + Math.sin((x / W) * Math.PI * 6 + t) * (H * 0.3)
           x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
         }
         ctx.stroke()
-        // Second layer, offset
-        ctx.strokeStyle = '#39d35344'
+        // Second layer — azure shimmer
+        const grad2 = ctx.createLinearGradient(0, 0, W, 0)
+        grad2.addColorStop(0,   '#38bdf855')
+        grad2.addColorStop(0.5, '#e0c97744')
+        grad2.addColorStop(1,   '#38bdf855')
+        ctx.strokeStyle = grad2
+        ctx.shadowColor = '#38bdf8'
+        ctx.shadowBlur = 4
         ctx.beginPath()
         for (let x = 0; x < W; x++) {
-          const y = H / 2 + Math.sin((x / W) * Math.PI * 4 + phaseRef.current * 0.7) * (H * 0.18)
+          const y = H / 2 + Math.sin((x / W) * Math.PI * 4 + t * 0.65) * (H * 0.18)
           x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
         }
         ctx.stroke()
+        ctx.shadowBlur = 0
 
       } else {
-        // ── Idle: slow breathing flat line ────────────────────────────────
-        phaseRef.current += 0.015
-        const alpha = 0.12 + Math.abs(Math.sin(phaseRef.current)) * 0.18
-        ctx.strokeStyle = `rgba(255, 26, 64, ${alpha})`
+        // ── Idle: slow breathing aurora line ──────────────────────────────
+        phaseRef.current += 0.012
+        const alpha = 0.1 + Math.abs(Math.sin(phaseRef.current)) * 0.22
+        const idleGrad = ctx.createLinearGradient(0, 0, W, 0)
+        idleGrad.addColorStop(0,   `rgba(110, 80, 240, 0)`)
+        idleGrad.addColorStop(0.3, `rgba(110, 80, 240, ${alpha})`)
+        idleGrad.addColorStop(0.6, `rgba(30, 140, 255, ${alpha * 0.8})`)
+        idleGrad.addColorStop(1,   `rgba(110, 80, 240, 0)`)
+        ctx.strokeStyle = idleGrad
         ctx.lineWidth = 1
         ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke()
       }
@@ -411,9 +448,39 @@ export default function ChatPanel() {
   const voiceBotIdRef   = useRef<string | null>(null)
   const voiceStateRef   = useRef<VoiceState>('idle')
   const loopRef         = useRef(false)
+  const chatAwakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { voiceStateRef.current = voiceState }, [voiceState])
   useEffect(() => { loopRef.current = loopEnabled }, [loopEnabled])
+
+  const markChatAwake = useCallback(() => {
+    document.documentElement.setAttribute('data-chat-awake', '')
+    if (chatAwakeTimerRef.current) clearTimeout(chatAwakeTimerRef.current)
+    chatAwakeTimerRef.current = setTimeout(() => {
+      document.documentElement.removeAttribute('data-chat-awake')
+      chatAwakeTimerRef.current = null
+    }, CHAT_AWAKE_MS)
+  }, [])
+
+  useEffect(() => {
+    if (messages.length > 0 || busy || voiceState !== 'idle') markChatAwake()
+  }, [messages.length, busy, voiceState, markChatAwake])
+
+  useEffect(() => {
+    return () => {
+      if (chatAwakeTimerRef.current) clearTimeout(chatAwakeTimerRef.current)
+      document.documentElement.removeAttribute('data-chat-awake')
+    }
+  }, [])
+
+  // ── Speech energy → CSS driving ambient animation ─────────────────────
+  useEffect(() => {
+    return subscribeSpeechEnergy((energy, isSpeaking) => {
+      document.documentElement.style.setProperty('--speech-energy', energy.toFixed(3))
+      if (isSpeaking) document.documentElement.setAttribute('data-speaking', '')
+      else            document.documentElement.removeAttribute('data-speaking')
+    })
+  }, [])
 
   const submitFeedback = useCallback(async (messageId: string, approved: boolean) => {
     const message = useStore.getState().messages.find((entry) => entry.id === messageId)
@@ -717,6 +784,7 @@ export default function ChatPanel() {
   function send() {
     const text = input.trim()
     if (!text || busy || !chatSocket) return
+    markChatAwake()
     resumePlayCtx()
     if (chatSocket.readyState !== WebSocket.OPEN) { connectChatSocket(); return }
     const userId = crypto.randomUUID(); const botId = crypto.randomUUID()
@@ -737,11 +805,11 @@ export default function ChatPanel() {
     <div className="panel panel-chat" style={{ flex: 1, minHeight: 0 }}>
       <div className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>
-          PALANTIR TERMINAL
-          {activeConversationId && <span style={{ fontSize: 10, color: 'var(--cyan)', marginLeft: 8 }}>· THREAD REJOINED</span>}
+          MITHRANDIR
+          {activeConversationId && <span style={{ fontSize: 10, color: 'var(--cyan)', marginLeft: 8 }}>· THREAD RESTORED</span>}
           {isRecording && <span style={{ fontSize: 10, color: 'var(--red)', marginLeft: 8, animation: 'pulse-text 0.8s infinite' }}>· LISTENING</span>}
-          {isSpeaking  && <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 8 }}>· VOICE ABROAD</span>}
-          {voiceState === 'thinking' && <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 8 }}>· IN COUNCIL</span>}
+          {isSpeaking  && <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 8 }}>· VOICE OUTPUT</span>}
+          {voiceState === 'thinking' && <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 8 }}>· PROCESSING</span>}
         </span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {ttsStatus && (
@@ -765,9 +833,21 @@ export default function ChatPanel() {
           </div>
         )}
         {messages.length === 0 && (
-          <div className="dim" style={{ alignSelf: 'center', marginTop: 40, textAlign: 'center', lineHeight: 2 }}>
-            <div style={{ fontSize: 32, fontFamily: 'var(--font-display)', color: 'var(--amber)', opacity: 0.3 }}>MITHRANDIR AT WATCH</div>
-            <div style={{ fontSize: 11, opacity: 0.4 }}>SPEAK, OR SET YOUR QUESTION IN WORDS_</div>
+          <div style={{ alignSelf: 'center', marginTop: 56, textAlign: 'center', lineHeight: 2.2 }}>
+            <div style={{
+              fontSize: 40,
+              fontFamily: 'var(--font-title)',
+              letterSpacing: '0.10em',
+              color: 'var(--fg)',
+              opacity: 0.80,
+              filter: 'drop-shadow(0 0 12px rgba(140,190,240,0.28))',
+              marginBottom: 14,
+            }}>
+              MITHRANDIR
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.35, letterSpacing: '0.18em', color: 'var(--fg)' }}>
+              TRANSMIT YOUR QUERY
+            </div>
           </div>
         )}
         {messages.map((m) => (
@@ -847,7 +927,15 @@ export default function ChatPanel() {
       </div>
 
       {/* Waveform — always visible, mode-driven animation */}
-      <div style={{ flexShrink: 0, background: '#06070c', borderTop: '1px solid var(--border)' }}>
+      <div
+        style={{
+          flexShrink: 0,
+          background: 'linear-gradient(180deg, rgb(var(--nebula-azure) / 0.16), rgb(var(--nebula-azure) / 0.08))',
+          borderTop: '1px solid rgb(var(--nebula-violet) / 0.34)',
+          backdropFilter: 'blur(14px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(14px) saturate(150%)',
+        }}
+      >
         <Waveform analyser={activeAnalyser} mode={voiceState} />
       </div>
 
@@ -885,7 +973,7 @@ export default function ChatPanel() {
         <span className="chat-prefix">&gt;_</span>
         <input
           className="chat-input"
-          placeholder={isRecording ? 'listening…' : 'ask for counsel, or speak…'}
+          placeholder={isRecording ? 'listening…' : 'ask anything, or speak…'}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && send()}
@@ -901,7 +989,9 @@ export default function ChatPanel() {
       <div style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
         padding: '4px 10px', borderTop: '1px solid var(--border)',
-        background: '#060810',
+        background: 'linear-gradient(180deg, rgb(var(--nebula-azure) / 0.14), rgb(var(--nebula-azure) / 0.06))',
+        backdropFilter: 'blur(14px) saturate(145%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(145%)',
       }}>
         <VoiceToggle label="VAD"  on={vadEnabled}  onClick={() => setVadEnabled(v => !v)}  title="Auto-stop on silence" />
         <VoiceToggle label="LOOP" on={loopEnabled} onClick={() => setLoopEnabled(v => !v)} title="Auto-listen after response" />
@@ -937,14 +1027,23 @@ export default function ChatPanel() {
 
         <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--amber-dim)', letterSpacing: '0.08em' }}>
           {isRecording ? vadEnabled ? 'AUTO-STOP · SPACE TO SEND' : 'SPACE TO SEND'
-            : isSpeaking ? '♪ SPEAKING'
+            : isSpeaking ? '♪ OUTPUT ACTIVE'
             : 'SPACE TO SPEAK'}
         </span>
       </div>
 
       {/* Device selector (collapsible) */}
       {showDevSel && devices.length > 0 && (
-        <div style={{ flexShrink: 0, padding: '6px 10px', borderTop: '1px solid var(--border)', background: '#06070c' }}>
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '6px 10px',
+            borderTop: '1px solid var(--border)',
+            background: 'linear-gradient(180deg, rgb(var(--nebula-azure) / 0.12), rgb(var(--nebula-azure) / 0.06))',
+            backdropFilter: 'blur(12px) saturate(145%)',
+            WebkitBackdropFilter: 'blur(12px) saturate(145%)',
+          }}
+        >
           <div style={{ fontSize: 10, color: 'var(--amber-dim)', marginBottom: 4, letterSpacing: '0.1em' }}>INPUT DEVICE</div>
           <select
             value={selectedDev}

@@ -8,7 +8,7 @@ log_interval: 10
 device: "cuda"
 
 epochs: 100
-batch_size: 4
+batch_size: 2
 max_len: 200
 
 pretrained_model: "../pretrained/StyleTTS2-LibriTTS/epochs_2nd_00020.pth"
