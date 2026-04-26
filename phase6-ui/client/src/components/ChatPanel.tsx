@@ -81,7 +81,7 @@ function connectChatSocket(onTtsError?: (msg: string) => void) {
 
 const SPEECH_THRESHOLD    = 0.012
 const SILENCE_THRESHOLD   = 0.008
-const SILENCE_DURATION_MS = 900
+const SILENCE_DURATION_MS = 2000
 const MIN_SPEECH_MS       = 400
 const VAD_POLL_MS         = 80
 const CHAT_AWAKE_MS       = 3 * 60 * 1000
