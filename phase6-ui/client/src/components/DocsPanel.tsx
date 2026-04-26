@@ -30,12 +30,12 @@ const CAT_LABELS: Record<string, string> = {
 }
 
 const CAT_COLORS: Record<string, string> = {
-  rtx4090:    'var(--cyan)',
-  memory:     'var(--amber)',
-  execution:  'var(--green)',
-  performance:'#c8b4e0',
-  gemma4:     '#e8d080',
-  inference:  'var(--amber)',
+  rtx4090:    'rgba(132, 160, 190, 0.96)',
+  memory:     'rgba(116, 132, 150, 0.96)',
+  execution:  'rgba(124, 146, 168, 0.96)',
+  performance:'rgba(136, 146, 162, 0.96)',
+  gemma4:     'rgba(144, 156, 174, 0.96)',
+  inference:  'rgba(126, 140, 158, 0.96)',
 }
 
 // ── Single doc card ───────────────────────────────────────────────────────────

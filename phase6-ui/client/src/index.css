@@ -903,7 +903,35 @@ html[data-mithrandir-responding] .col-chat {
 }
 
 :root:not([data-theme='dark']) .param-value {
-  color: rgba(132, 95, 38, 0.98);
+  color: rgba(54, 72, 94, 0.98);
+}
+
+:root:not([data-theme='dark']) .doc-search {
+  color: rgba(34, 52, 74, 0.98);
+  caret-color: rgba(76, 98, 124, 0.94);
+  border-color: rgba(132, 164, 202, 0.34);
+  background: rgba(248, 252, 255, 0.72);
+}
+
+:root:not([data-theme='dark']) .doc-cat-tab {
+  color: rgba(58, 76, 98, 0.86);
+}
+
+:root:not([data-theme='dark']) .doc-cat-tab:hover {
+  color: rgba(42, 62, 86, 0.96);
+  background: rgba(220, 232, 246, 0.42);
+}
+
+:root:not([data-theme='dark']) .doc-spec-val {
+  color: rgba(46, 72, 102, 0.96);
+}
+
+:root:not([data-theme='dark']) .memory-vault {
+  color: rgba(36, 56, 79, 0.98);
+}
+
+:root:not([data-theme='dark']) .memory-vault .dim {
+  color: rgba(64, 86, 112, 0.86);
 }
 
 :root:not([data-theme='dark']) .chat-input {

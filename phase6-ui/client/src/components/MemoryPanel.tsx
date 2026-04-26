@@ -80,18 +80,18 @@ export default function MemoryPanel() {
   }
 
   return (
-    <div className="panel panel-bottom" style={{ minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="panel panel-bottom memory-vault" style={{ minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* Title row */}
       <div className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <span>CONTEXT VAULT</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {unlocked && (
-            <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--amber-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}>↺</button>
+            <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--white-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}>↺</button>
           )}
           <button
             onClick={() => { if (unlocked) { setUnlocked(false) } else { setShowInput((s) => !s); setPwError(false) } }}
-            style={{ background: 'none', border: 'none', color: unlocked ? 'var(--green)' : 'var(--amber-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}
+            style={{ background: 'none', border: 'none', color: unlocked ? 'var(--cyan)' : 'var(--white-dim)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}
             title={unlocked ? 'Lock vault' : 'Unlock vault'}
           >
             {unlocked ? '🔓' : '🔒'}
@@ -112,13 +112,13 @@ export default function MemoryPanel() {
             style={{
               flex: 1, background: pwError ? '#1a0005' : '#0a0c14',
               border: `1px solid ${pwError ? 'var(--red)' : 'var(--border)'}`,
-              color: 'var(--amber)', fontFamily: 'var(--font-mono)', fontSize: 11,
+              color: 'var(--fg-strong)', fontFamily: 'var(--font-mono)', fontSize: 11,
               padding: '3px 6px', outline: 'none',
             }}
           />
           <button
             onClick={handleUnlockAttempt}
-            style={{ background: 'var(--amber-dim)', border: 'none', color: '#000', fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', cursor: 'pointer', letterSpacing: '0.08em' }}
+            style={{ background: 'var(--border-strong)', border: 'none', color: 'var(--fg-strong)', fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', cursor: 'pointer', letterSpacing: '0.08em' }}
           >
             UNLOCK
           </button>
@@ -167,19 +167,19 @@ export default function MemoryPanel() {
                       {e.score !== null ? e.score.toFixed(1) : '—'}
                     </span>
 
-                    <span style={{ fontSize: 11, color: 'var(--amber)', flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontSize: 11, color: 'var(--fg-strong)', flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                       {e.user}
                     </span>
 
                     <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(ev) => ev.stopPropagation()}>
                       <button onClick={() => handleRate(e.id, e.rating === 1 ? null : 1)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: e.rating === 1 ? 'var(--green)' : 'var(--white-dim)' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: e.rating === 1 ? 'var(--green)' : 'var(--fg)' }}
                         title="Good response">▲</button>
                       <button onClick={() => handleRate(e.id, e.rating === -1 ? null : -1)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: e.rating === -1 ? 'var(--red)' : 'var(--white-dim)' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: e.rating === -1 ? 'var(--red)' : 'var(--fg)' }}
                         title="Poor response">▼</button>
                       <button onClick={() => handleDelete(e.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, padding: '0 2px', color: 'var(--white-dim)' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, padding: '0 2px', color: 'var(--fg)' }}
                         title="Delete">✕</button>
                     </span>
                   </div>
@@ -207,8 +207,8 @@ export default function MemoryPanel() {
                             RESUME THREAD
                         </button>
                       </div>
-                      <div style={{ color: 'var(--amber)', marginBottom: 6, lineHeight: 1.5 }}>{e.user}</div>
-                      <div style={{ color: 'var(--white-dim)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.assistant}</div>
+                      <div style={{ color: 'var(--fg-strong)', marginBottom: 6, lineHeight: 1.5 }}>{e.user}</div>
+                      <div style={{ color: 'var(--fg)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.assistant}</div>
                     </div>
                   )}
                 </div>
