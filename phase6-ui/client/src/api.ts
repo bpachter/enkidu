@@ -99,6 +99,19 @@ export async function fetchMind(): Promise<AnyJson> {
   return fetchJsonWithRetry<AnyJson>(`${API_BASE}/api/mind`, 'mind')
 }
 
+export async function generateMindReflection(prompt: string): Promise<string> {
+  const data = await fetchJsonWithRetry<{ response?: string }>(`${API_BASE}/api/chat`, 'chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: prompt,
+      response_mode: 'visual',
+      tts: false,
+    }),
+  })
+  return String(data.response ?? '').trim()
+}
+
 export async function rateMemory(id: string, rating: number | null): Promise<void> {
   const r = await fetch(`${API_BASE}/api/memory/${id}/rate`, {
     method: 'POST',
