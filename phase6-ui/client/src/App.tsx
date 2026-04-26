@@ -16,6 +16,18 @@ type LeftTab = 'params' | 'docs'
 type AppMode = 'terminal' | 'avalon' | 'dev'
 type ThemeMode = 'dark' | 'light'
 
+function getEstHour(): number {
+  return parseInt(
+    new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }),
+    10,
+  )
+}
+
+function themeForTime(): ThemeMode {
+  const h = getEstHour()
+  return h >= 7 && h < 18 ? 'light' : 'dark'
+}
+
 export default function App() {
   const setGpuStats          = useStore((s) => s.setGpuStats)
   const pushGpuHistory       = useStore((s) => s.pushGpuHistory)
@@ -23,9 +35,10 @@ export default function App() {
   const [leftTab, setLeftTab] = useState<LeftTab>('params')
   const [mode,    setMode]    = useState<AppMode>('terminal')
   const [theme, setTheme] = useState<ThemeMode>(() => {
-    if (typeof window === 'undefined') return 'light'
-    const saved = window.localStorage.getItem('mithrandir-theme')
-    return saved === 'dark' || saved === 'light' ? saved : 'light'
+    // Set attribute synchronously so CelestialBackground reads correct value on mount.
+    const t = themeForTime()
+    document.documentElement.setAttribute('data-theme', t)
+    return t
   })
 
   // GPU WebSocket lives here — always connected regardless of which panel is visible.
@@ -49,8 +62,13 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    window.localStorage.setItem('mithrandir-theme', theme)
   }, [theme])
+
+  // Auto-switch at 7 AM and 6 PM EST — polls every 30 s, smooth canvas handles the visual fade
+  useEffect(() => {
+    const id = setInterval(() => setTheme(themeForTime()), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   if (mode === 'avalon') {
     return <SitingPanel onClose={() => setMode('terminal')} />
@@ -69,7 +87,7 @@ export default function App() {
     <div className="app-grid app-grid-shell">
       <button
         onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        title={theme === 'dark' ? 'Switch to day mode' : 'Switch to night mode'}
+        title={theme === 'dark' ? 'Switch to day mode (auto at 7 AM EST)' : 'Switch to night mode (auto at 6 PM EST)'}
         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
         className="theme-toggle fixed top-2 right-3 z-50"
       >

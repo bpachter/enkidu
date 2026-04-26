@@ -173,6 +173,7 @@ html, body, #root {
 .sky-stars-a {
   z-index: 1;
   opacity: 0.14;
+  transition: opacity 4s ease-in-out;
   background-image:
     radial-gradient(circle at 12px 17px, rgba(255, 248, 230, 0.95) 0 1.3px, transparent 1.4px),
     radial-gradient(circle at 65px 84px, rgba(168, 216, 255, 0.92) 0 1.1px, transparent 1.2px),
@@ -186,6 +187,7 @@ html, body, #root {
 .sky-stars-b {
   z-index: 2;
   opacity: 0.08;
+  transition: opacity 4s ease-in-out;
   background-image:
     radial-gradient(circle at 30px 32px, rgba(255, 236, 180, 0.72) 0 1.25px, transparent 1.35px),
     radial-gradient(circle at 108px 56px, rgba(194, 220, 255, 0.72) 0 0.95px, transparent 1.05px),
@@ -197,6 +199,7 @@ html, body, #root {
 .sky-aurora {
   z-index: 3;
   opacity: 0.30;
+  transition: opacity 4s ease-in-out;
   background:
     radial-gradient(64% 56% at 16% 12%, rgb(var(--nebula-azure) / 0.20), transparent 78%),
     radial-gradient(56% 48% at 84% 86%, rgb(var(--nebula-ameth) / 0.18), transparent 76%),
@@ -269,6 +272,7 @@ html, body, #root {
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  transition: opacity 4s ease-in-out;
   background-image:
     radial-gradient(65% 56% at 50% 38%, rgb(var(--nebula-azure) / 0.08), transparent 78%),
     radial-gradient(48% 42% at 78% 24%, rgb(var(--nebula-gold) / 0.08), transparent 82%),
@@ -792,6 +796,7 @@ html, body, #root {
 .app-header,
 .hw-bar {
   opacity: 0.46;
+  transition: opacity 3s ease-in-out;
 }
 
 :root:not([data-theme='dark']) :is(.col-left, .col-chat, .col-right, .app-header, .hw-bar) {
@@ -808,6 +813,7 @@ html, body, #root {
 .app-header:hover,
 .hw-bar:hover {
   opacity: 0.88;
+  transition: opacity 150ms ease-out;
 }
 
 .hw-bar-row .hw-bar:hover {
@@ -820,7 +826,7 @@ html, body, #root {
 .hw-bar :is(.hw-cell-label, .hw-cell-value, .hw-cell-sub),
 .app-header :is(.header-meta, .header-status, .header-logo) {
   opacity: 0.24;
-  transition: opacity var(--transition-slow), color var(--transition-slow), border-color var(--transition-slow), background var(--transition-slow), box-shadow var(--transition-slow);
+  transition: opacity 3s ease-in-out, color var(--transition-slow), border-color var(--transition-slow), background var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 :root:not([data-theme='dark']) .col-left :is(.panel-title, .panel-body, .tab-bar, .tab-btn, .param-label, .param-value, .param-desc, .save-btn, .doc-search, .doc-cat-tab, .doc-card, .doc-card-title, .doc-card-summary),
@@ -902,6 +908,7 @@ html[data-chat-awake] body:not([data-modal-open]) .col-chat :is(.panel-title, .c
 .hw-bar:hover :is(.hw-cell-label, .hw-cell-value, .hw-cell-sub),
 .app-header:hover :is(.header-meta, .header-status, .header-logo) {
   opacity: 0.90;
+  transition: opacity 150ms ease-out;
 }
 
 .hw-bar-row .hw-bar :is(.hw-cell-label, .hw-cell-value, .hw-cell-sub) {
