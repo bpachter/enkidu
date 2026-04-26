@@ -780,10 +780,10 @@ export default function ChatPanel() {
       <div className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>
           MITHRANDIR
-          {activeConversationId && <span style={{ fontSize: 10, color: 'var(--cyan)', marginLeft: 8 }}>· THREAD RESTORED</span>}
+          {activeConversationId && <span style={{ fontSize: 10, color: 'var(--cyan)', marginLeft: 8 }}>· MEMORY REJOINED</span>}
           {isRecording && <span style={{ fontSize: 10, color: 'var(--red)', marginLeft: 8, animation: 'pulse-text 0.8s infinite' }}>· LISTENING</span>}
           {isSpeaking  && <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 8 }}>· VOICE OUTPUT</span>}
-          {voiceState === 'thinking' && <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 8 }}>· PROCESSING</span>}
+          {voiceState === 'thinking' && <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 8 }}>· WEAVING THOUGHT</span>}
         </span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {ttsStatus && (
@@ -820,7 +820,7 @@ export default function ChatPanel() {
               MITHRANDIR
             </div>
             <div style={{ fontSize: 11, opacity: 0.35, letterSpacing: '0.18em', color: 'var(--fg)' }}>
-              TRANSMIT YOUR QUERY
+              SPEAK, AND I WILL ANSWER
             </div>
           </div>
         )}
@@ -945,7 +945,7 @@ export default function ChatPanel() {
           {isRecording ? '⏹' : isSpeaking ? '🔊' : '🎤'}
         </button>
 
-        <span className="chat-prefix">&gt;_</span>
+        <span className="chat-prefix">✶</span>
         <input
           className="chat-input"
           placeholder={isRecording ? 'listening…' : 'ask anything, or speak…'}
@@ -956,7 +956,7 @@ export default function ChatPanel() {
           autoFocus
         />
         <button className="chat-send" onClick={send} disabled={busy || !input.trim()}>
-          SEND
+          INVOKE
         </button>
       </div>
 
@@ -1003,7 +1003,7 @@ export default function ChatPanel() {
         <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--amber-dim)', letterSpacing: '0.08em' }}>
           {isRecording ? vadEnabled ? 'AUTO-STOP · SPACE TO SEND' : 'SPACE TO SEND'
             : isSpeaking ? '♪ OUTPUT ACTIVE'
-            : 'SPACE TO SPEAK'}
+            : 'HOLD SPACE TO SPEAK'}
         </span>
       </div>
 

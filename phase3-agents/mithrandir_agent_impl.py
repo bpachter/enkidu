@@ -106,7 +106,10 @@ _FAST_LANE_ENABLED = os.environ.get("MITHRANDIR_FAST_LANE", "1").strip().lower()
     "1", "true", "yes", "on"
 }
 _SPOKEN_MAX_TOKENS = int(os.environ.get("MITHRANDIR_SPOKEN_MAX_TOKENS", "384"))
-_SHORT_REPLY_MAX_TOKENS = int(os.environ.get("MITHRANDIR_SHORT_REPLY_MAX_TOKENS", "160"))
+_SHORT_REPLY_MAX_TOKENS = int(os.environ.get("MITHRANDIR_SHORT_REPLY_MAX_TOKENS", "220"))
+_DETAILED_SPOKEN_MAX_TOKENS = int(os.environ.get("MITHRANDIR_DETAILED_SPOKEN_MAX_TOKENS", "640"))
+_DETAILED_REPLY_MAX_TOKENS = int(os.environ.get("MITHRANDIR_DETAILED_REPLY_MAX_TOKENS", "896"))
+_CONTINUATION_MAX_TOKENS = int(os.environ.get("MITHRANDIR_CONTINUATION_MAX_TOKENS", "320"))
 _REACT_MAX_TOKENS = int(os.environ.get("MITHRANDIR_REACT_MAX_TOKENS", "768"))
 _REACT_MAX_ITERATIONS = int(os.environ.get("MITHRANDIR_REACT_MAX_ITERATIONS", "6"))
 _REACT_SPOKEN_MAX_ITERATIONS = int(os.environ.get("MITHRANDIR_REACT_SPOKEN_MAX_ITERATIONS", "4"))
@@ -301,9 +304,22 @@ _CONVERSATIONAL_CUES = [
     "jarvis", "chat", "conversational",
 ]
 
+_DETAIL_CUES = [
+    "in detail", "detailed", "deep dive", "full report", "comprehensive",
+    "thorough", "elaborate", "expand", "long form", "step by step",
+    "full analysis", "write a report", "walk me through in detail",
+]
+
+
+def _wants_detailed_answer(query: str) -> bool:
+    q = query.lower().strip()
+    return any(cue in q for cue in _DETAIL_CUES)
+
 
 def _looks_conversational(query: str) -> bool:
     q = query.lower().strip()
+    if _wants_detailed_answer(q):
+        return False
     if len(q.split()) <= 14:
         return True
     return any(cue in q for cue in _CONVERSATIONAL_CUES)
@@ -325,6 +341,7 @@ def _with_latency_budget(
     tool_mode: bool,
 ) -> dict:
     opts = dict(base_options or {})
+    wants_detail = _wants_detailed_answer(query)
 
     def _opt_int(name: str, fallback: int) -> int:
         try:
@@ -337,9 +354,13 @@ def _with_latency_budget(
         return opts
 
     if response_mode == "spoken":
-        opts["num_predict"] = min(_opt_int("num_predict", _SPOKEN_MAX_TOKENS), _SPOKEN_MAX_TOKENS)
-    if _looks_conversational(query):
+        spoken_cap = _DETAILED_SPOKEN_MAX_TOKENS if wants_detail else _SPOKEN_MAX_TOKENS
+        opts["num_predict"] = min(_opt_int("num_predict", spoken_cap), spoken_cap)
+
+    if _looks_conversational(query) and not wants_detail:
         opts["num_predict"] = min(_opt_int("num_predict", _SHORT_REPLY_MAX_TOKENS), _SHORT_REPLY_MAX_TOKENS)
+    elif wants_detail and response_mode != "spoken":
+        opts["num_predict"] = min(_opt_int("num_predict", _DETAILED_REPLY_MAX_TOKENS), _DETAILED_REPLY_MAX_TOKENS)
 
     return opts
 
@@ -359,6 +380,26 @@ def _truncate_observation(observation: str, max_chars: int) -> str:
     head = max_chars // 2
     tail = max_chars - head
     return observation[:head] + "\n[...truncated for latency...]\n" + observation[-tail:]
+
+
+_COMPLETE_ENDINGS = (".", "!", "?", '"', "'", "”", "’", ")")
+_CUT_SUFFIXES = (
+    " and", " or", " but", " so", " because", " which", " that", " with", " to", " of", " in", " on", " for",
+    ",", ":", ";", "-", "—", "(", "[",
+)
+
+
+def _looks_cut_off(text: str) -> bool:
+    t = (text or "").rstrip()
+    if len(t) < 40:
+        return False
+    if t.endswith(_COMPLETE_ENDINGS):
+        return False
+    lower = t.lower()
+    if any(lower.endswith(sfx) for sfx in _CUT_SUFFIXES):
+        return True
+    # If it's long and lacks a clean ending punctuation, assume truncation.
+    return True
 
 
 def _build_system_prompt(user_message: str = "", response_mode: str = "visual", max_iter: int = MAX_ITERATIONS) -> str:
@@ -415,11 +456,6 @@ def _build_system_prompt(user_message: str = "", response_mode: str = "visual", 
                 "NOTE: The user is asking about your last response. "
                 f"It was:\n\nUser said: {prev_user}\nYou responded: {prev_asst}"
             )
-        else:
-            last_exchange_block = (
-                f"Most recent exchange (for continuity):\n"
-                f"User: {prev_user}\nMithrandir: {prev_asst}"
-            )
 
     style_block = ""
     if response_mode == "spoken":
@@ -427,7 +463,9 @@ def _build_system_prompt(user_message: str = "", response_mode: str = "visual", 
             "SPOKEN RESPONSE MODE: Favor warm, natural prose that sounds good aloud. "
             "Avoid markdown headings, bullets, tool traces, enumerated debug lines, URLs, and symbol-heavy notation. "
             "Expand abbreviations and punctuation into conversational phrasing. Sound calm, direct, and dignified. "
-            "Latency rule: give a concise first answer in 1-3 short sentences, then offer to expand if needed."
+            "Default pacing rule: answer in 1-2 short sentences, then ask one specific follow-up question to steer the next turn. "
+            "If the user explicitly asks for detail/deep dive/full report, provide full detail without forced brevity. "
+            "Never stop mid-thought; always end on a complete sentence."
         )
 
     extra = "\n\n".join(filter(None, [identity_block, last_exchange_block, memory_block, speech_guidance, style_block]))
@@ -693,11 +731,6 @@ def _build_local_system_prompt(user_message: str = "", web_context: str | None =
                 "NOTE: The user is asking about your last response. "
                 f"It was:\n\nUser said: {prev_user}\nYou responded: {prev_asst}"
             )
-        else:
-            last_exchange_block = (
-                f"Most recent exchange (for continuity):\n"
-                f"User: {prev_user}\nMithrandir: {prev_asst}"
-            )
 
     parts = [
         # ── WHO YOU ARE ──────────────────────────────────────────────────────
@@ -794,7 +827,9 @@ def _build_local_system_prompt(user_message: str = "", web_context: str | None =
         parts.append(
             "Spoken style: Use complete sentences, gentle transitions, and natural pauses. "
             "Prefer prose over lists, and explain symbols in words instead of reading punctuation literally. "
-            "Keep the first pass concise (1-3 short sentences), then offer detail on request."
+            "Default pacing: 1-2 short sentences, then one targeted follow-up question that advances the conversation. "
+            "If Ben asks for detail/deep dive/full report, provide full detail and skip the brevity pattern. "
+            "Never end mid-sentence."
         )
 
     operational = "\n".join(parts)
@@ -842,55 +877,90 @@ def _run_local(
     try:
         # Build options — filter out sentinel values Ollama doesn't expect
         _opts = {k: v for k, v in (ollama_options or {}).items() if not (k == "seed" and v == -1)}
-        resp = _req.post(
-            f"{OLLAMA_URL}/api/chat",
-            json={
-                "model": model_name,
-                "keep_alive": -1,
-                "messages": [
-                    {"role": "system", "content": system},
-                    *(prior_messages or []),
-                    {"role": "user", "content": query},
-                ],
-                "stream": True,
-                **({"options": _opts} if _opts else {}),
-            },
-            stream=True,
-            timeout=(180, 300),  # (connect, read) — 3 min for cold 26B model load
-        )
-        resp.raise_for_status()
+        def _stream_once(messages_payload: list[dict], options_payload: dict) -> tuple[str, str]:
+            _resp = _req.post(
+                f"{OLLAMA_URL}/api/chat",
+                json={
+                    "model": model_name,
+                    "keep_alive": -1,
+                    "messages": messages_payload,
+                    "stream": True,
+                    **({"options": options_payload} if options_payload else {}),
+                },
+                stream=True,
+                timeout=(180, 300),
+            )
+            _resp.raise_for_status()
 
-        tokens: list[str] = []
-        last_edit = 0.0
+            _tokens: list[str] = []
+            _last_edit = 0.0
+            _done_reason = ""
+            for line in _resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-        for line in resp.iter_lines():
-            if not line:
-                continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    _tokens.append(token)
+                    if on_token:
+                        on_token(token)
+                    else:
+                        now = _time.monotonic()
+                        if on_step and now - _last_edit >= 1.5 and len(_tokens) > 5:
+                            partial = "".join(_tokens)
+                            preview = partial[-300:] if len(partial) > 300 else partial
+                            on_step(preview)
+                            _last_edit = now
+
+                if chunk.get("done"):
+                    _done_reason = (chunk.get("done_reason") or "").strip().lower()
+                    break
+
+            return "".join(_tokens).strip(), _done_reason
+
+        base_messages = [
+            {"role": "system", "content": system},
+            *(prior_messages or []),
+            {"role": "user", "content": query},
+        ]
+        answer, done_reason = _stream_once(base_messages, _opts)
+
+        if answer and (done_reason == "length" or _looks_cut_off(answer)):
+            if on_step:
+                on_step("Completing the thought...")
+            continuation_opts = dict(_opts)
             try:
-                chunk = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+                continuation_opts["num_predict"] = min(
+                    int(continuation_opts.get("num_predict", _CONTINUATION_MAX_TOKENS)),
+                    _CONTINUATION_MAX_TOKENS,
+                )
+            except Exception:
+                continuation_opts["num_predict"] = _CONTINUATION_MAX_TOKENS
 
-            token = chunk.get("message", {}).get("content", "")
-            if token:
-                tokens.append(token)
-
-                if on_token:
-                    # UI streaming — send every token directly
-                    on_token(token)
+            continuation_messages = [
+                {"role": "system", "content": system},
+                *(prior_messages or []),
+                {"role": "user", "content": query},
+                {"role": "assistant", "content": answer},
+                {
+                    "role": "user",
+                    "content": (
+                        "Continue from the exact point you stopped and finish naturally. "
+                        "Do not restart, do not repeat prior sentences, and end with a complete sentence."
+                    ),
+                },
+            ]
+            cont, _ = _stream_once(continuation_messages, continuation_opts)
+            if cont:
+                if answer.endswith((" ", "\n")) or cont.startswith((" ", "\n", ",", ".", ";", ":", "!", "?")):
+                    answer = f"{answer}{cont}".strip()
                 else:
-                    # Fallback for Telegram/CLI: batch preview every 1.5s
-                    now = _time.monotonic()
-                    if on_step and now - last_edit >= 1.5 and len(tokens) > 5:
-                        partial = "".join(tokens)
-                        preview = partial[-300:] if len(partial) > 300 else partial
-                        on_step(preview)
-                        last_edit = now
+                    answer = f"{answer} {cont}".strip()
 
-            if chunk.get("done"):
-                break
-
-        answer = "".join(tokens).strip()
         if not answer:
             return None
 
