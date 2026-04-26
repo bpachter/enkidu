@@ -28,7 +28,7 @@ _HERE       = Path(__file__).parent
 _TRAINING   = _HERE.parent.parent / "voice-training"
 _REPO       = _TRAINING / "styletts2_repo"
 _PRETRAINED = _TRAINING / "pretrained" / "StyleTTS2-LibriTTS"
-_LOGS       = _TRAINING / "logs" / "mithrandir_voice"
+_LOGS       = _TRAINING / "logs" / "mithrandir_elevenlabs"
 _DEFAULT_REF = _TRAINING / "reference_mithrandir.wav"
 
 if str(_REPO) not in sys.path:
@@ -38,9 +38,13 @@ os.chdir(str(_REPO))  # StyleTTS2 expects to be run from its own directory
 
 
 def _find_checkpoint() -> Path:
-    """Return the latest fine-tuned checkpoint, or the base pretrained model."""
+    """Return the best fine-tuned checkpoint, or the base pretrained model."""
     if _LOGS.exists():
-        ckpts = sorted(_LOGS.glob("epoch_*.pth"))
+        # epoch_2nd_00094 = epoch 95, val 0.528 — best saved checkpoint from the run
+        preferred = _LOGS / "epoch_2nd_00094.pth"
+        if preferred.exists():
+            return preferred
+        ckpts = sorted(_LOGS.glob("epoch_2nd_*.pth"))
         if ckpts:
             return ckpts[-1]
     base = _PRETRAINED / "epochs_2nd_00020.pth"

@@ -1131,8 +1131,8 @@ def _styletts2_available() -> bool:
     if _stt2_disabled_session or not _STT2_WORKER_SCRIPT.exists():
         return False
     # Check that at least one fine-tuned checkpoint exists
-    logs_dir = Path(__file__).parent.parent.parent / "voice-training" / "logs" / "mithrandir_voice"
-    return logs_dir.exists() and any(logs_dir.glob("epoch_*.pth"))
+    logs_dir = Path(__file__).parent.parent.parent / "voice-training" / "logs" / "mithrandir_elevenlabs"
+    return logs_dir.exists() and any(logs_dir.glob("epoch_2nd_*.pth"))
 
 
 def _start_stt2_worker() -> bool:
@@ -1177,7 +1177,7 @@ def _synth_styletts2(text: str, timeout: int = 30) -> Optional[bytes]:
             return None
         req = {"text": text, "voice_path": ""}
         try:
-            _stt2_proc.stdin.write(json.dumps(req) + "\n")
+            _stt2_proc.stdin.write(_json.dumps(req) + "\n")
             _stt2_proc.stdin.flush()
         except Exception as e:
             logger.error(f"StyleTTS2 write error: {e}")
