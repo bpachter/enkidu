@@ -30,7 +30,8 @@ interface PerspectiveCloud {
   speed:        number   // z advance per t unit
   baseSize:     number   // cloud radius at z=1 as fraction of min(W,H)
   opacity:      number   // peak opacity
-  puffs:        number
+  puffs:        number   // puffs per tier (horizontal width)
+  tiers:        number   // vertical layers (creates the cumulonimbus tower)
   puffSpread:   number   // lateral puff spread factor
   phase:        number   // per-cloud variety phase
 }
@@ -51,15 +52,16 @@ function buildPerspectiveClouds(count: number): PerspectiveCloud[] {
   return Array.from({ length: count }, (_, i) => ({
     angle:        (i / count) * Math.PI * 2 + (Math.random() * 0.40 - 0.20),
     initialPhase: Math.random(),
-    speed:        0.044 + Math.random() * 0.062,   // ~18-40 s per traversal
-    baseSize:     0.09  + Math.random() * 0.20,
-    opacity:      0.30  + Math.random() * 0.40,
-    puffs:        4     + Math.floor(Math.random() * 7),
-    puffSpread:   0.28  + Math.random() * 0.44,
+    speed:        0.009 + Math.random() * 0.014,   // slow — 70-110 s per traversal
+    baseSize:     0.20  + Math.random() * 0.42,    // massive — cumulonimbus towers
+    opacity:      0.58  + Math.random() * 0.35,
+    puffs:        5     + Math.floor(Math.random() * 5),   // per tier
+    tiers:        3     + Math.floor(Math.random() * 3),   // 3–5 vertical layers
+    puffSpread:   0.55  + Math.random() * 0.45,
     phase:        Math.random() * Math.PI * 2,
   }))
 }
-const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(78)
+const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(36)
 
 // ── night nebulae ──────────────────────────────────────────────
 const NIGHT_NEBULAE: NebulaVol[] = [
@@ -391,35 +393,59 @@ export default function CelestialBackground() {
           // Cloud grows with z (tiny at centre, large as it passes)
           const cloudR = cloud.baseSize * Math.min(W, H) * (0.04 + 0.96 * z)
 
-          // Tangent direction for puff spread (perpendicular to radial travel)
+          // Tangent direction for lateral (horizontal) puff spread
           const tx = -Math.sin(cloud.angle)
           const ty =  Math.cos(cloud.angle)
 
-          for (let i = 0; i < cloud.puffs; i++) {
-            const frac     = cloud.puffs > 1 ? i / (cloud.puffs - 1) - 0.5 : 0
-            const undulate = Math.sin(t * 0.09 + cloud.phase + i * 1.1) * cloudR * 0.06
-            const puffX    = sx + tx * frac * cloud.puffSpread * cloudR * 2.0
-            const puffY    = sy + ty * frac * cloud.puffSpread * cloudR * 2.0 + undulate
-            const bell2    = Math.max(0, 1.0 - Math.abs(frac) * 1.8)
-            const puffR    = cloudR * (0.50 + 0.72 * bell2)
-            if (puffR < 1) continue
-            const puffOp   = bellOp * (0.48 + 0.52 * bell2)
+          // ── Flat dark base (cumulonimbus rain-shelf underside) ──
+          const baseAlpha = bellOp * 0.38
+          const baseCY    = sy + cloudR * 0.42
+          const baseGrad  = ctx.createRadialGradient(sx, baseCY, 0, sx, baseCY, cloudR * 1.3)
+          baseGrad.addColorStop(0,    `rgba(148,162,182,${baseAlpha.toFixed(3)})`)
+          baseGrad.addColorStop(0.55, `rgba(158,172,190,${(baseAlpha * 0.52).toFixed(3)})`)
+          baseGrad.addColorStop(1,    'rgba(168,182,200,0)')
+          ctx.fillStyle = baseGrad
+          ctx.beginPath()
+          ctx.ellipse(sx, baseCY, cloudR * 1.3, cloudR * 0.28, 0, 0, Math.PI * 2)
+          ctx.fill()
 
-            const mix = 0.5 + 0.5 * Math.sin(cloud.phase + i * 1.4 + t * 0.025)
-            const cR  = Math.round(220 + 35 * mix)
-            const cG  = Math.round(230 + 25 * mix)
-            const cB  = Math.round(242 + 13 * mix)
-            const eR  = Math.round(188 + 22 * mix)
-            const eG  = Math.round(204 + 18 * mix)
-            const eB  = Math.round(220 + 10 * mix)
+          // ── Vertical tower of puff tiers (grey base → bright white apex) ──
+          for (let tier = 0; tier < cloud.tiers; tier++) {
+            const tierFrac  = cloud.tiers > 1 ? tier / (cloud.tiers - 1) : 0  // 0=base 1=apex
+            const tierOffY  = -cloudR * (tierFrac * 1.75 + 0.05)   // tower grows upward
+            const tierTaper = 1.0 - 0.40 * tierFrac                 // narrower at top
+            const tierPuffs = Math.max(3, Math.round(cloud.puffs * tierTaper))
 
-            const wg = ctx.createRadialGradient(puffX, puffY, 0, puffX, puffY, puffR)
-            wg.addColorStop(0,    `rgba(${cR},${cG},${cB},${(puffOp * 0.95).toFixed(3)})`)
-            wg.addColorStop(0.30, `rgba(${eR},${eG},${eB},${(puffOp * 0.68).toFixed(3)})`)
-            wg.addColorStop(0.65, `rgba(${eR},${eG},${eB},${(puffOp * 0.24).toFixed(3)})`)
-            wg.addColorStop(1,    'rgba(205,220,238,0)')
-            ctx.fillStyle = wg
-            ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2); ctx.fill()
+            for (let i = 0; i < tierPuffs; i++) {
+              const frac     = tierPuffs > 1 ? i / (tierPuffs - 1) - 0.5 : 0
+              const undulate = Math.sin(t * 0.045 + cloud.phase + i * 1.1 + tier * 2.3) * cloudR * 0.035
+              const puffX    = sx + tx * frac * cloud.puffSpread * cloudR * 2.0 * tierTaper
+              const puffY    = sy + ty * frac * cloud.puffSpread * cloudR * 0.22 + tierOffY + undulate
+
+              const bell2  = Math.max(0, 1.0 - Math.abs(frac) * 1.65)
+              // Upper tiers have bigger, rounder puffs (cauliflower dome at apex)
+              const puffR  = cloudR * (0.40 + 0.55 * bell2) * (0.62 + 0.52 * tierFrac)
+              if (puffR < 1) continue
+              const puffOp = bellOp * (0.58 + 0.42 * bell2) * (0.72 + 0.28 * tierFrac)
+
+              // Shade: steely grey at base → pure bright white at apex
+              const w  = 0.50 + 0.50 * tierFrac
+              const cR = Math.round(lerp(172, 255, w))
+              const cG = Math.round(lerp(182, 255, w))
+              const cB = Math.round(lerp(198, 255, w))
+              const eR = Math.round(lerp(150, 225, w))
+              const eG = Math.round(lerp(163, 235, w))
+              const eB = Math.round(lerp(180, 248, w))
+
+              // Highlight shifted upward so each blob looks lit from above
+              const wg = ctx.createRadialGradient(puffX, puffY - puffR * 0.18, 0, puffX, puffY, puffR)
+              wg.addColorStop(0,    `rgba(${cR},${cG},${cB},${(puffOp * 0.97).toFixed(3)})`)
+              wg.addColorStop(0.30, `rgba(${Math.round((cR+eR)/2)},${Math.round((cG+eG)/2)},${Math.round((cB+eB)/2)},${(puffOp * 0.70).toFixed(3)})`)
+              wg.addColorStop(0.65, `rgba(${eR},${eG},${eB},${(puffOp * 0.26).toFixed(3)})`)
+              wg.addColorStop(1,    'rgba(200,215,235,0)')
+              ctx.fillStyle = wg
+              ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2); ctx.fill()
+            }
           }
         }
       }
