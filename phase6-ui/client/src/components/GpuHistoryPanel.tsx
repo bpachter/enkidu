@@ -29,19 +29,19 @@ interface DerivedPoint extends SparkPoint {
 }
 
 const C = {
-  gpu:      { stroke: 'rgba(185,215,245,0.80)', fill: 'rgba(185,215,245,0.14)' },
-  vram:     { stroke: 'rgba(210,220,232,0.70)', fill: 'rgba(210,220,232,0.10)' },
-  temp:     { stroke: 'rgba(210,220,232,0.70)', fill: 'rgba(210,220,232,0.10)' },
-  power:    { stroke: 'rgba(200,212,228,0.65)', fill: 'rgba(200,212,228,0.09)' },
-  clock_sm: { stroke: 'rgba(175,208,240,0.75)', fill: 'rgba(175,208,240,0.11)' },
-  clock_mem:{ stroke: 'rgba(195,215,238,0.70)', fill: 'rgba(195,215,238,0.10)' },
-  cpu:      { stroke: 'rgba(210,218,228,0.62)', fill: 'rgba(210,218,228,0.09)' },
+  gpu:      { stroke: 'rgba(132,176,222,0.98)', fill: 'rgba(132,176,222,0.20)' },
+  vram:     { stroke: 'rgba(156,186,214,0.96)', fill: 'rgba(156,186,214,0.18)' },
+  temp:     { stroke: 'rgba(148,180,210,0.96)', fill: 'rgba(148,180,210,0.18)' },
+  power:    { stroke: 'rgba(146,176,206,0.95)', fill: 'rgba(146,176,206,0.18)' },
+  clock_sm: { stroke: 'rgba(124,172,220,0.98)', fill: 'rgba(124,172,220,0.20)' },
+  clock_mem:{ stroke: 'rgba(140,178,216,0.96)', fill: 'rgba(140,178,216,0.18)' },
+  cpu:      { stroke: 'rgba(154,182,206,0.95)', fill: 'rgba(154,182,206,0.18)' },
 }
 
 function threshold(val: number, warn: number, crit: number): string {
-  if (val >= crit) return 'rgba(220,175,160,0.88)'
-  if (val >= warn) return 'rgba(225,210,185,0.82)'
-  return 'rgba(185,210,240,0.85)'
+  if (val >= crit) return 'rgba(188,96,84,0.98)'
+  if (val >= warn) return 'rgba(172,128,62,0.98)'
+  return 'rgba(126,166,204,0.98)'
 }
 
 // ── Metric info lookup ────────────────────────────────────────────────────
@@ -271,7 +271,7 @@ function MetricCell({ label, value, color, data, dataKey, stroke, domain, unit, 
               type="monotone"
               dataKey={dataKey as string}
               stroke={stroke}
-              strokeWidth={1.5}
+              strokeWidth={1.8}
               fill={`url(#hg-${dataKey})`}
               dot={false}
               isAnimationActive={false}

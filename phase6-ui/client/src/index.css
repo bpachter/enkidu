@@ -841,11 +841,11 @@ html[data-mithrandir-responding] .col-chat {
 }
 
 :root:not([data-theme='dark']) :is(.col-left, .col-chat, .col-right, .app-header, .hw-bar) {
-  opacity: 0.62;
+  opacity: 0.74;
 }
 
 .hw-bar-row .hw-bar {
-  opacity: 0.90;
+  opacity: 0.96;
 }
 
 .col-left:hover,
@@ -874,7 +874,11 @@ html[data-mithrandir-responding] .col-chat {
 :root:not([data-theme='dark']) .col-chat :is(.panel-title, .chat-messages, .msg-label, .msg-bubble, .chat-input-row, .chat-prefix, .chat-input, .chat-send),
 :root:not([data-theme='dark']) .col-right :is(.panel-title, .ticker-table, .metric-value, .dim, .tab, .tab-btn),
 :root:not([data-theme='dark']) .app-header :is(.header-meta, .header-status, .header-logo) {
-  opacity: 0.72;
+  opacity: 0.88;
+}
+
+:root:not([data-theme='dark']) .hw-bar :is(.hw-cell-label, .hw-cell-value, .hw-cell-sub) {
+  opacity: 0.96;
 }
 
 :root:not([data-theme='dark']) .panel-title {
@@ -890,7 +894,15 @@ html[data-mithrandir-responding] .col-chat {
 :root:not([data-theme='dark']) .ticker-table td,
 :root:not([data-theme='dark']) .param-desc,
 :root:not([data-theme='dark']) .doc-card-summary {
-  color: rgba(36, 56, 79, 0.96);
+  color: rgba(30, 49, 72, 0.98);
+}
+
+:root:not([data-theme='dark']) .param-label {
+  color: rgba(44, 64, 88, 0.86);
+}
+
+:root:not([data-theme='dark']) .param-value {
+  color: rgba(132, 95, 38, 0.98);
 }
 
 :root:not([data-theme='dark']) .chat-input {
