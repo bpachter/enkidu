@@ -110,7 +110,7 @@ export default function App() {
         onClick={() => setMode('dev')}
         title="Open Mithrandir Forge — code orchestration and review"
         className="
-          group fixed bottom-2 right-2 z-50
+          app-launch-btn group fixed bottom-2 right-2 z-50
           inline-flex items-center gap-2 rounded-sm border
           px-3 py-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.22em]
           transition-all duration-150
@@ -141,7 +141,7 @@ export default function App() {
             target="_blank"
             rel="noopener noreferrer"
             className="
-              inline-flex items-center rounded-sm border
+              app-launch-btn inline-flex items-center rounded-sm border
               px-3 py-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.22em]
               transition-all duration-150
               hover:shadow-[0_0_14px_-4px_rgba(184,196,208,0.4)]
