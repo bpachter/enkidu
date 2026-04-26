@@ -24,11 +24,15 @@ interface NebulaVol {
   phase: number
 }
 
-interface CloudWisp {
-  x0: number; y: number
-  w: number; h: number
-  opacity: number; speed: number
-  puffs: number; undulate: number; phase: number
+interface PerspectiveCloud {
+  angle:        number   // radians from vanishing-point centre
+  initialPhase: number   // pre-scattered z start (0-1)
+  speed:        number   // z advance per t unit
+  baseSize:     number   // cloud radius at z=1 as fraction of min(W,H)
+  opacity:      number   // peak opacity
+  puffs:        number
+  puffSpread:   number   // lateral puff spread factor
+  phase:        number   // per-cloud variety phase
 }
 
 // ── helpers ────────────────────────────────────────────────────
@@ -42,24 +46,20 @@ function lerpRGBA(n: [number, number, number, number], d: [number, number, numbe
   return `rgba(${Math.round(lerp(n[0], d[0], t))},${Math.round(lerp(n[1], d[1], t))},${Math.round(lerp(n[2], d[2], t))},${lerp(n[3], d[3], t).toFixed(3)})`
 }
 
-// ── cloud wisp table ───────────────────────────────────────────
-const CLOUD_WISPS: CloudWisp[] = [
-  // Far layer
-  { x0: 0.05, y: 0.10, w: 0.50, h: 0.042, opacity: 0.55, speed: 0.036, puffs:  7, undulate: 0.006, phase: 0.0 },
-  { x0: 0.45, y: 0.24, w: 0.44, h: 0.038, opacity: 0.50, speed: 0.033, puffs:  6, undulate: 0.005, phase: 1.3 },
-  { x0: 0.82, y: 0.70, w: 0.48, h: 0.040, opacity: 0.48, speed: 0.039, puffs:  6, undulate: 0.006, phase: 2.6 },
-  { x0: 0.22, y: 0.56, w: 0.40, h: 0.036, opacity: 0.46, speed: 0.031, puffs:  5, undulate: 0.005, phase: 4.1 },
-  { x0: 0.65, y: 0.38, w: 0.52, h: 0.042, opacity: 0.52, speed: 0.037, puffs:  7, undulate: 0.006, phase: 5.5 },
-  // Mid layer
-  { x0: 0.15, y: 0.18, w: 0.68, h: 0.070, opacity: 0.60, speed: 0.064, puffs:  9, undulate: 0.010, phase: 0.7 },
-  { x0: 0.60, y: 0.50, w: 0.62, h: 0.065, opacity: 0.56, speed: 0.070, puffs:  8, undulate: 0.011, phase: 2.2 },
-  { x0: 0.90, y: 0.30, w: 0.72, h: 0.075, opacity: 0.58, speed: 0.060, puffs: 10, undulate: 0.009, phase: 3.8 },
-  { x0: 0.35, y: 0.78, w: 0.60, h: 0.068, opacity: 0.50, speed: 0.072, puffs:  8, undulate: 0.011, phase: 5.0 },
-  // Near layer
-  { x0: 0.25, y: 0.06, w: 0.88, h: 0.130, opacity: 0.38, speed: 0.128, puffs: 12, undulate: 0.015, phase: 1.5 },
-  { x0: 0.70, y: 0.88, w: 0.82, h: 0.125, opacity: 0.34, speed: 0.136, puffs: 11, undulate: 0.017, phase: 4.0 },
-  { x0: 0.50, y: 0.46, w: 0.76, h: 0.118, opacity: 0.36, speed: 0.120, puffs: 11, undulate: 0.014, phase: 6.5 },
-]
+// ── perspective cloud field (fly-through) ─────────────────────
+function buildPerspectiveClouds(count: number): PerspectiveCloud[] {
+  return Array.from({ length: count }, (_, i) => ({
+    angle:        (i / count) * Math.PI * 2 + (Math.random() * 0.40 - 0.20),
+    initialPhase: Math.random(),
+    speed:        0.044 + Math.random() * 0.062,   // ~18-40 s per traversal
+    baseSize:     0.09  + Math.random() * 0.20,
+    opacity:      0.30  + Math.random() * 0.40,
+    puffs:        4     + Math.floor(Math.random() * 7),
+    puffSpread:   0.28  + Math.random() * 0.44,
+    phase:        Math.random() * Math.PI * 2,
+  }))
+}
+const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(26)
 
 // ── night nebulae ──────────────────────────────────────────────
 const NIGHT_NEBULAE: NebulaVol[] = [
@@ -284,10 +284,10 @@ export default function CelestialBackground() {
       ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
       const sky = ctx.createLinearGradient(0, 0, 0, H)
-      sky.addColorStop(0.00, lerpRGB([6,22,43],   [96,105,114], p))
-      sky.addColorStop(0.36, lerpRGB([3,16,34],   [114,124,134], p))
-      sky.addColorStop(0.70, lerpRGB([2,12,26],   [146,156,167], p))
-      sky.addColorStop(1.00, lerpRGB([1,7,19],    [168,177,187], p))
+      sky.addColorStop(0.00, lerpRGB([6,22,43],   [62,120,188], p))
+      sky.addColorStop(0.36, lerpRGB([3,16,34],   [96,158,215], p))
+      sky.addColorStop(0.70, lerpRGB([2,12,26],   [146,198,230], p))
+      sky.addColorStop(1.00, lerpRGB([1,7,19],    [190,218,238], p))
       ctx.fillStyle = sky
       ctx.fillRect(0, 0, W, H)
 
@@ -371,42 +371,62 @@ export default function CelestialBackground() {
         }
       }
 
-      // ── Day: parallax cloud wisps ──────────────────────────────
+      // ── Day: perspective fly-through clouds ─────────────────────
       if (p > 0.001) {
         ctx.globalCompositeOperation = 'source-over'
-        for (const wisp of CLOUD_WISPS) {
-          const period   = 1.0 + wisp.w + 0.12
-          const rawPhase = (wisp.x0 * period + wisp.speed * t) % period
-          const wispCx   = (1.0 + wisp.w / 2 + 0.06 - rawPhase) * W
-          if (wispCx + wisp.w*W*0.5 < 0 || wispCx - wisp.w*W*0.5 > W) continue
+        const vpX    = W * 0.50
+        const vpY    = H * 0.44
+        const spread = Math.min(W, H) * 0.95
 
-          for (let i = 0; i < wisp.puffs; i++) {
-            const frac  = wisp.puffs > 1 ? i / (wisp.puffs - 1) : 0.5
-            const puffX = wispCx + (frac - 0.5) * wisp.w * W
-            if (puffX < -wisp.h*W*2 || puffX > W + wisp.h*W*2) continue
+        for (const cloud of PERSPECTIVE_CLOUDS) {
+          const z    = ((cloud.initialPhase + cloud.speed * t) % 1.0 + 1.0) % 1.0
+          const dist = z * spread
+          const sx   = vpX + Math.cos(cloud.angle) * dist
+          const sy   = vpY + Math.sin(cloud.angle) * dist
 
-            const puffY  = wisp.y*H + wisp.undulate*H*Math.sin(t*0.14 + wisp.phase + frac*Math.PI*2.5)
-            const bell   = Math.sin(frac * Math.PI)
-            const puffR  = wisp.h * W * (0.48 + 0.80 * bell)
-            const puffOp = wisp.opacity * (0.38 + 0.62 * bell) * p
+          // Bell opacity — fade in from vanishing point, fade out near edge
+          const bellOp = Math.sin(Math.min(z, 0.88) / 0.88 * Math.PI) * cloud.opacity * p
+          if (bellOp < 0.015) continue
 
-            const mix  = 0.5 + 0.5 * Math.sin(wisp.phase + frac*Math.PI*3.0 + t*0.03)
-            const cR = Math.round(220 + 35*mix); const cG = Math.round(224 + 31*mix); const cB = Math.round(230 + 25*mix)
-            const mR = Math.round(198 + 42*mix); const mG = Math.round(204 + 40*mix); const mB = Math.round(214 + 36*mix)
+          // Cloud grows with z (tiny at centre, large as it passes)
+          const cloudR = cloud.baseSize * Math.min(W, H) * (0.04 + 0.96 * z)
+
+          // Tangent direction for puff spread (perpendicular to radial travel)
+          const tx = -Math.sin(cloud.angle)
+          const ty =  Math.cos(cloud.angle)
+
+          for (let i = 0; i < cloud.puffs; i++) {
+            const frac     = cloud.puffs > 1 ? i / (cloud.puffs - 1) - 0.5 : 0
+            const undulate = Math.sin(t * 0.09 + cloud.phase + i * 1.1) * cloudR * 0.06
+            const puffX    = sx + tx * frac * cloud.puffSpread * cloudR * 2.0
+            const puffY    = sy + ty * frac * cloud.puffSpread * cloudR * 2.0 + undulate
+            const bell2    = Math.max(0, 1.0 - Math.abs(frac) * 1.8)
+            const puffR    = cloudR * (0.50 + 0.72 * bell2)
+            if (puffR < 1) continue
+            const puffOp   = bellOp * (0.48 + 0.52 * bell2)
+
+            const mix = 0.5 + 0.5 * Math.sin(cloud.phase + i * 1.4 + t * 0.025)
+            const cR  = Math.round(220 + 35 * mix)
+            const cG  = Math.round(230 + 25 * mix)
+            const cB  = Math.round(242 + 13 * mix)
+            const eR  = Math.round(188 + 22 * mix)
+            const eG  = Math.round(204 + 18 * mix)
+            const eB  = Math.round(220 + 10 * mix)
 
             const wg = ctx.createRadialGradient(puffX, puffY, 0, puffX, puffY, puffR)
-            wg.addColorStop(0,    `rgba(${cR},${cG},${cB},${(puffOp*0.94).toFixed(3)})`)
-            wg.addColorStop(0.32, `rgba(${mR},${mG},${mB},${(puffOp*0.66).toFixed(3)})`)
-            wg.addColorStop(0.64, `rgba(${mR},${mG},${mB},${(puffOp*0.22).toFixed(3)})`)
-            wg.addColorStop(1,    'rgba(228,234,242,0)')
-            ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI*2); ctx.fill()
+            wg.addColorStop(0,    `rgba(${cR},${cG},${cB},${(puffOp * 0.95).toFixed(3)})`)
+            wg.addColorStop(0.30, `rgba(${eR},${eG},${eB},${(puffOp * 0.68).toFixed(3)})`)
+            wg.addColorStop(0.65, `rgba(${eR},${eG},${eB},${(puffOp * 0.24).toFixed(3)})`)
+            wg.addColorStop(1,    'rgba(205,220,238,0)')
+            ctx.fillStyle = wg
+            ctx.beginPath(); ctx.arc(puffX, puffY, puffR, 0, Math.PI * 2); ctx.fill()
           }
         }
       }
 
       // ── Stars: multi-freq twinkle, glints, diffraction spikes ──
       ctx.globalCompositeOperation = 'source-over'
-      const starScale = lerp(1.0, 0.35, p)
+      const starScale = Math.max(0, 1 - p * 1.6)   // fully hidden once day > ~62%
 
       for (const star of STARS) {
         // Multi-frequency scintillation (primary + 2.4× harmonic)
