@@ -1445,6 +1445,42 @@ def _synth_sapi(text: str) -> bytes:
 # Public API
 # ---------------------------------------------------------------------------
 
+# Amount of light room reverb applied to StyleTTS2 output.
+# Set to 0 to output completely raw (VAD-trimmed) StyleTTS2 audio.
+_STT2_REVERB_MIX = float(os.environ.get("MITHRANDIR_STT2_REVERB_MIX", "0.06"))
+_STT2_REVERB_MS  = float(os.environ.get("MITHRANDIR_STT2_REVERB_MS",  "45"))
+_STT2_REVERB_FB  = float(os.environ.get("MITHRANDIR_STT2_REVERB_FB",  "0.22"))
+
+
+def _postprocess_styletts2_wav_bytes(wav_bytes: bytes) -> bytes:
+    """Minimal postprocess for StyleTTS2 — VAD trim only, plus optional very
+    light room reverb so the voice sits in the same acoustic space as the UI.
+    The heavy FX chain (formant warp, low-shelf boost, chest EQ, tanh drive,
+    etc.) is intentionally skipped: StyleTTS2 was trained on the Gandalf/
+    Mithrandir reference audio and already has the correct timbre.  Running
+    the Kokoro FX chain on top of it is what caused the muffled 'potato mic'
+    sound — the stacked low-end boosts and resampling artifacts killed
+    intelligibility."""
+    if not wav_bytes:
+        return wav_bytes
+    try:
+        import soundfile as sf
+        buf_in = io.BytesIO(wav_bytes)
+        audio, sr = sf.read(buf_in, dtype="float32", always_2d=False)
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1).astype(np.float32)
+        audio = _vad_trim(audio, sr)
+        if _STT2_REVERB_MIX > 0:
+            audio = _short_reverb(audio, sr, _STT2_REVERB_MS, _STT2_REVERB_FB, _STT2_REVERB_MIX)
+        audio = np.clip(audio, -1.0, 1.0).astype(np.float32)
+        buf_out = io.BytesIO()
+        sf.write(buf_out, audio, sr, format="WAV", subtype="PCM_16")
+        return buf_out.getvalue()
+    except Exception as e:
+        logger.warning(f"StyleTTS2 post-process failed, returning raw wav: {e}")
+        return wav_bytes
+
+
 def _postprocess_wav_bytes(wav_bytes: bytes, voice_profile: Optional[str]) -> bytes:
     """Re-apply character FX (pitch + extended chain) to WAV bytes from F5-TTS /
     Chatterbox / edge-tts / SAPI so every backend shares the same voice signature.
@@ -1514,7 +1550,10 @@ async def synthesize(text: str, voice_profile: Optional[str] = None) -> tuple[by
     if _styletts2_available():
         wav = await loop.run_in_executor(None, lambda: _synth_styletts2(text))
         if wav:
-            wav = _postprocess_wav_bytes(wav, profile)
+            # Bypass the Kokoro FX chain — StyleTTS2 was trained on the
+            # reference audio and already carries the correct timbre.
+            # Only VAD trim + optional light reverb are applied.
+            wav = _postprocess_styletts2_wav_bytes(wav)
             logger.info(f"TTS backend=StyleTTS2 profile={profile!r}")
             return wav, "wav"
         logger.warning("StyleTTS2 failed, falling back to F5…")
@@ -1576,7 +1615,8 @@ async def synthesize_streaming(
         if _styletts2_available():
             wav = await loop.run_in_executor(None, lambda s=sentence: _synth_styletts2(s))
             if wav:
-                wav = _postprocess_wav_bytes(wav, profile)
+                # Bypass Kokoro FX — StyleTTS2 already has correct timbre.
+                wav = _postprocess_styletts2_wav_bytes(wav)
                 logger.info(f"TTS stream backend=StyleTTS2 profile={profile!r} seq={seq}")
 
         if not wav and clone_ref and _f5_available():
