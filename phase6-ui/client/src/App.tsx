@@ -127,6 +127,37 @@ export default function App() {
         Dev
       </button>
 
+      {/* External app links — bottom-left launcher strip */}
+      <div className="fixed bottom-2 left-2 z-50 flex items-center gap-2">
+        {[
+          { label: 'Avalon',  href: 'https://bpachter.github.io/avalon/' },
+          { label: 'Orator',  href: 'https://bpachter.github.io/orator/?view=yield-curve&range=5Y' },
+          { label: 'Chronos', href: 'https://bpachter.github.io/chronos/' },
+          { label: 'Aegis',   href: 'https://bpachter.github.io/aegis/' },
+        ].map(({ label, href }) => (
+          <a
+            key={label}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="
+              inline-flex items-center rounded-sm border
+              px-3 py-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.22em]
+              transition-all duration-150
+              hover:shadow-[0_0_14px_-4px_rgba(184,196,208,0.4)]
+              no-underline
+            "
+            style={{
+              borderColor: 'var(--border-strong)',
+              background: 'rgba(186,198,210,0.10)',
+              color: 'var(--fg)',
+            }}
+          >
+            {label}
+          </a>
+        ))}
+      </div>
+
       {/* Hardware monitoring strip */}
       <div className="hw-bar-row">
         <GpuHistoryPanel />
