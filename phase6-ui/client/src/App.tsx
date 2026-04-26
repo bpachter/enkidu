@@ -212,18 +212,18 @@ export default function App() {
       <div className="col-right">
         <div className="tab-bar">
           <button
-            className={`tab-btn ${rightTab === 'vault' ? 'active' : ''}`}
-            onClick={() => setRightTab('vault')}
-          >
-            <Archive className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
-            Vault
-          </button>
-          <button
             className={`tab-btn ${rightTab === 'mind' ? 'active' : ''}`}
             onClick={() => setRightTab('mind')}
           >
             <BrainCircuit className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
             Mind
+          </button>
+          <button
+            className={`tab-btn ${rightTab === 'vault' ? 'active' : ''}`}
+            onClick={() => setRightTab('vault')}
+          >
+            <Archive className="mr-1.5 inline h-3 w-3 -translate-y-px" strokeWidth={2.2} />
+            Vault
           </button>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>

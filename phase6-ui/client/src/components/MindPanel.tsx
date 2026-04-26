@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BrainCircuit, RefreshCcw, Sparkles } from 'lucide-react'
+import { RefreshCcw, Sparkles } from 'lucide-react'
 import { fetchHistory, fetchMemory, fetchMind, generateMindReflection } from '../api'
 
 interface MindStats {
@@ -344,45 +344,72 @@ export default function MindPanel() {
       <div className="mind-body">
         <div className="mind-section mind-hero-section">
           <div
-            className={`mind-hero ${reflecting ? 'is-reflecting' : ''}`}
+            className={`mind-neural-stage ${reflecting ? 'is-reflecting' : ''}`}
             onMouseEnter={() => setStatusText('inspect, refresh, or trigger reflection')}
             onMouseLeave={() => setStatusText(reflecting ? 'mithrandir is reflecting over recent memory' : 'hover the cortex to surface actions')}
           >
-            <div className="mind-brain-shell" aria-hidden="true">
-              <div className="mind-brain-halo" />
-              <svg viewBox="0 0 120 120" className="mind-brain-svg">
-                <circle cx="60" cy="60" r="38" className="mind-brain-ring" />
-                <path d="M44 35c-10 4-18 15-18 27 0 14 9 25 21 29" className="mind-brain-lobe" />
-                <path d="M76 35c10 4 18 15 18 27 0 14-9 25-21 29" className="mind-brain-lobe" />
-                <path d="M49 30c4 5 6 10 6 15s-3 8-7 12c-4 4-6 8-6 13s2 10 6 14" className="mind-brain-trace" />
-                <path d="M71 30c-4 5-6 10-6 15s3 8 7 12c4 4 6 8 6 13s-2 10-6 14" className="mind-brain-trace" />
-                <path d="M57 38c-2 4-3 8-3 11 0 5 3 8 6 12 3 3 6 7 6 13 0 4-1 8-3 11" className="mind-brain-trace mid" />
-                <circle cx="60" cy="60" r="6" className="mind-brain-core" />
-                <circle cx="34" cy="53" r="2.5" className="mind-node node-a" />
-                <circle cx="86" cy="53" r="2.5" className="mind-node node-b" />
-                <circle cx="60" cy="92" r="2.5" className="mind-node node-c" />
-              </svg>
-              <div className="mind-orbit-actions">
-                <button className="mind-orbit-chip" onClick={handleReflect} disabled={reflecting || !data}>
-                  <Sparkles className="h-3 w-3" strokeWidth={2.2} />
-                  {reflecting ? 'Reflecting' : 'Reflect'}
-                </button>
-                <button className="mind-orbit-chip" onClick={() => void load()}>
-                  <RefreshCcw className="h-3 w-3" strokeWidth={2.2} />
-                  Refresh
-                </button>
-                <div className="mind-orbit-chip static">
-                  <BrainCircuit className="h-3 w-3" strokeWidth={2.2} />
-                  Trace
-                </div>
-              </div>
+            <div className="mind-neural-ambient" aria-hidden="true" />
+            <svg viewBox="0 0 200 150" className="mind-neural-svg" aria-hidden="true">
+              {/* Orbit rings — 3 planes give 3-D orbital feel */}
+              <ellipse cx="100" cy="75" rx="86" ry="24" className="mind-ring mind-ring-a" />
+              <ellipse cx="100" cy="75" rx="24" ry="72" className="mind-ring mind-ring-b" />
+              <ellipse cx="100" cy="75" rx="72" ry="20" className="mind-ring mind-ring-c" />
+              {/* Left hemisphere */}
+              <path d="M100 26 C82 24,64 30,52 44 C40 58,36 72,40 86 C44 100,54 112,68 118 C80 123,92 122,100 120" className="mind-hemi" />
+              {/* Right hemisphere */}
+              <path d="M100 26 C118 24,136 30,148 44 C160 58,164 72,160 86 C156 100,146 112,132 118 C120 123,108 122,100 120" className="mind-hemi" />
+              {/* Midline sulcus */}
+              <line x1="100" y1="26" x2="100" y2="120" className="mind-sulcus" />
+              {/* Cerebral folds — left */}
+              <path d="M68 32 C60 44,56 60,60 76" className="mind-fold" />
+              <path d="M50 60 C52 72,58 84,68 92" className="mind-fold" />
+              <path d="M86 28 C80 44,80 62,86 78 C88 86,90 94,90 106" className="mind-fold" />
+              {/* Cerebral folds — right */}
+              <path d="M132 32 C140 44,144 60,140 76" className="mind-fold" />
+              <path d="M150 60 C148 72,142 84,132 92" className="mind-fold" />
+              <path d="M114 28 C120 44,120 62,114 78 C112 86,110 94,110 106" className="mind-fold" />
+              {/* Synaptic base connections */}
+              <line x1="100" y1="72" x2="100" y2="46" className="mind-syn" />
+              <line x1="100" y1="72" x2="74" y2="56" className="mind-syn" />
+              <line x1="100" y1="72" x2="126" y2="56" className="mind-syn" />
+              <line x1="100" y1="72" x2="58" y2="80" className="mind-syn" />
+              <line x1="100" y1="72" x2="142" y2="80" className="mind-syn" />
+              <line x1="100" y1="72" x2="74" y2="104" className="mind-syn" />
+              <line x1="100" y1="72" x2="126" y2="104" className="mind-syn" />
+              {/* Traveling synaptic pulses */}
+              <path d="M100 72 L100 46" className="mind-pulse pulse-1" />
+              <path d="M100 72 L74 56"  className="mind-pulse pulse-2" />
+              <path d="M100 72 L126 56" className="mind-pulse pulse-3" />
+              <path d="M100 72 L58 80"  className="mind-pulse pulse-4" />
+              <path d="M100 72 L142 80" className="mind-pulse pulse-5" />
+              <path d="M100 72 L74 104" className="mind-pulse pulse-6" />
+              <path d="M100 72 L126 104" className="mind-pulse pulse-7" />
+              {/* Peripheral nodes */}
+              <circle cx="100" cy="46"  r="3"   className="mind-nc node-top" />
+              <circle cx="74"  cy="56"  r="3.5" className="mind-nc node-1" />
+              <circle cx="126" cy="56"  r="3.5" className="mind-nc node-2" />
+              <circle cx="58"  cy="80"  r="3"   className="mind-nc node-3" />
+              <circle cx="142" cy="80"  r="3"   className="mind-nc node-4" />
+              <circle cx="74"  cy="104" r="3"   className="mind-nc node-5" />
+              <circle cx="126" cy="104" r="3"   className="mind-nc node-6" />
+              {/* Core — always rendered last so it's on top */}
+              <circle cx="100" cy="72"  r="7"   className="mind-nc mind-nc-core" />
+            </svg>
+            <div className="mind-neural-chips">
+              <button
+                className="mind-neural-chip"
+                onClick={handleReflect}
+                disabled={reflecting || !data}
+              >
+                <Sparkles className="h-3 w-3" strokeWidth={2.2} />
+                {reflecting ? 'Reflecting…' : 'Reflect'}
+              </button>
+              <button className="mind-neural-chip" onClick={() => void load()}>
+                <RefreshCcw className="h-3 w-3" strokeWidth={2.2} />
+                Refresh
+              </button>
             </div>
-
-            <div className="mind-hero-copy">
-              <div className="mind-section-label">COGNITION SURFACE</div>
-              <div className="mind-hero-title">Mithrandir can think over its own history and keep what it notices.</div>
-              <div className="mind-hero-status">{statusText}</div>
-            </div>
+            <div className="mind-neural-status">{statusText}</div>
           </div>
         </div>
 
