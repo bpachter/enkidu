@@ -325,59 +325,23 @@ function Waveform({ analyser, mode }: { analyser: AnalyserNode | null; mode: Wav
         ctx.stroke()
         ctx.shadowBlur = 0
 
-      } else if (mode === 'thinking') {
-        // ── Scanning line ─────────────────────────────────────────────────
-        phaseRef.current += 0.04
-        const x = ((Math.sin(phaseRef.current) * 0.5 + 0.5)) * W
-        const grad = ctx.createLinearGradient(0, 0, W, 0)
-        grad.addColorStop(0, '#ff8c0000')
-        grad.addColorStop(Math.max(0, x / W - 0.1), '#ff8c0000')
-        grad.addColorStop(x / W, '#ffaa44ff')
-        grad.addColorStop(Math.min(1, x / W + 0.1), '#ff8c0000')
-        grad.addColorStop(1, '#ff8c0000')
-        ctx.strokeStyle = grad
-        ctx.lineWidth = 1.5
-        ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke()
-        // Glowing dot at scan position
-        const glow = ctx.createRadialGradient(x, H / 2, 0, x, H / 2, 12)
-        glow.addColorStop(0, '#ffaa44cc')
-        glow.addColorStop(1, '#ffaa4400')
-        ctx.fillStyle = glow
-        ctx.beginPath(); ctx.arc(x, H / 2, 12, 0, Math.PI * 2); ctx.fill()
+      } else if (mode === 'thinking' || mode === 'speaking') {
+        // ── Response mode: neutral pulse line (no purple aurora) ─────────
+        phaseRef.current += mode === 'speaking' ? 0.12 : 0.08
+        const pulse = (Math.sin(phaseRef.current) * 0.5) + 0.5
+        const alpha = 0.25 + pulse * 0.55
 
-      } else if (mode === 'speaking') {
-        // ── Aurora sine wave (violet → azure) ────────────────────────────
-        phaseRef.current += 0.08
-        const t = phaseRef.current
-        // Primary wave — violet
-        const grad1 = ctx.createLinearGradient(0, 0, W, 0)
-        grad1.addColorStop(0,    '#7c3aed99')
-        grad1.addColorStop(0.4,  '#818cf8cc')
-        grad1.addColorStop(0.75, '#38bdf8aa')
-        grad1.addColorStop(1,    '#7c3aed99')
-        ctx.strokeStyle = grad1
-        ctx.lineWidth = 1.8
-        ctx.shadowColor = '#818cf8'
-        ctx.shadowBlur = 6
+        const grad = ctx.createLinearGradient(0, 0, W, 0)
+        grad.addColorStop(0,   `rgba(224,201,119,${alpha * 0.20})`)
+        grad.addColorStop(0.5, `rgba(224,201,119,${alpha})`)
+        grad.addColorStop(1,   `rgba(224,201,119,${alpha * 0.20})`)
+        ctx.strokeStyle = grad
+        ctx.lineWidth = mode === 'speaking' ? 2 : 1.6
+        ctx.shadowColor = '#e0c977'
+        ctx.shadowBlur = mode === 'speaking' ? 12 : 8
         ctx.beginPath()
-        for (let x = 0; x < W; x++) {
-          const y = H / 2 + Math.sin((x / W) * Math.PI * 6 + t) * (H * 0.3)
-          x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-        }
-        ctx.stroke()
-        // Second layer — azure shimmer
-        const grad2 = ctx.createLinearGradient(0, 0, W, 0)
-        grad2.addColorStop(0,   '#38bdf855')
-        grad2.addColorStop(0.5, '#e0c97744')
-        grad2.addColorStop(1,   '#38bdf855')
-        ctx.strokeStyle = grad2
-        ctx.shadowColor = '#38bdf8'
-        ctx.shadowBlur = 4
-        ctx.beginPath()
-        for (let x = 0; x < W; x++) {
-          const y = H / 2 + Math.sin((x / W) * Math.PI * 4 + t * 0.65) * (H * 0.18)
-          x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-        }
+        ctx.moveTo(0, H / 2)
+        ctx.lineTo(W, H / 2)
         ctx.stroke()
         ctx.shadowBlur = 0
 
@@ -799,10 +763,20 @@ export default function ChatPanel() {
 
   const isRecording = voiceState === 'recording'
   const isSpeaking  = voiceState === 'speaking'
+  const isResponding = busy || voiceState === 'thinking' || voiceState === 'speaking'
   const micColor    = isRecording ? 'var(--red)' : isSpeaking ? 'var(--green)' : busy ? 'var(--amber-dim)' : 'var(--amber)'
 
+  useEffect(() => {
+    if (isResponding) {
+      document.documentElement.setAttribute('data-mithrandir-responding', '')
+    } else {
+      document.documentElement.removeAttribute('data-mithrandir-responding')
+    }
+    return () => document.documentElement.removeAttribute('data-mithrandir-responding')
+  }, [isResponding])
+
   return (
-    <div className="panel panel-chat" style={{ flex: 1, minHeight: 0 }}>
+    <div className={`panel panel-chat ${isResponding ? 'responding' : ''}`} style={{ flex: 1, minHeight: 0 }}>
       <div className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>
           MITHRANDIR
@@ -928,6 +902,7 @@ export default function ChatPanel() {
 
       {/* Waveform — always visible, mode-driven animation */}
       <div
+        className={`voice-response-panel ${isResponding ? 'is-active' : ''}`}
         style={{
           flexShrink: 0,
           background: 'linear-gradient(180deg, rgb(var(--nebula-azure) / 0.16), rgb(var(--nebula-azure) / 0.08))',
