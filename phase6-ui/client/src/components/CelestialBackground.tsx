@@ -63,7 +63,7 @@ function buildPerspectiveClouds(count: number): PerspectiveCloud[] {
     phase:        Math.random() * Math.PI * 2,
   }))
 }
-const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(32)
+const PERSPECTIVE_CLOUDS = buildPerspectiveClouds(64)
 
 // ── night nebulae ──────────────────────────────────────────────
 const NIGHT_NEBULAE: NebulaVol[] = [
@@ -315,14 +315,6 @@ export default function CelestialBackground() {
         bloom.addColorStop(1,    'rgba(255,255,255,0)')
         ctx.fillStyle = bloom; ctx.fillRect(0, 0, W, H)
 
-        const shaft = ctx.createLinearGradient(W*0.30, 0, W*0.70, 0)
-        shaft.addColorStop(0.00, 'rgba(255,255,255,0)')
-        shaft.addColorStop(0.38, `rgba(245,249,255,${Math.min(0.22, 0.06*pulse*sg*p).toFixed(3)})`)
-        shaft.addColorStop(0.50, `rgba(255,255,255,${Math.min(0.45, 0.14*pulse*sg*p).toFixed(3)})`)
-        shaft.addColorStop(0.62, `rgba(245,249,255,${Math.min(0.22, 0.06*pulse*sg*p).toFixed(3)})`)
-        shaft.addColorStop(1.00, 'rgba(255,255,255,0)')
-        ctx.fillStyle = shaft; ctx.fillRect(0, 0, W, H)
-
         const aur = ctx.createRadialGradient(W*0.5, H*0.12, H*0.01, W*0.5, H*0.12, H*0.18)
         aur.addColorStop(0, `rgba(255,255,255,${Math.min(0.80, 0.34*pulse*sg*p).toFixed(3)})`)
         aur.addColorStop(1, 'rgba(255,255,255,0)')
@@ -421,16 +413,18 @@ export default function CelestialBackground() {
               if (puffR < 1) continue
               const puffOp = bellOp * (0.58 + 0.42 * bell2) * (0.72 + 0.28 * tierFrac)
 
-              // Shade: brighter body (no dark under-oval shading), still allowing rainy variants.
+              // Shade: mix bright cumulus with occasional darker storm-grey masses.
               const w  = 0.50 + 0.50 * tierFrac
-              const rainCloud = cloud.storminess > 0.68
-              const rainTint = rainCloud ? 1 : 0
-              const cR = Math.round(lerp(202, 255, w) - 12 * rainTint)
-              const cG = Math.round(lerp(214, 255, w) - 14 * rainTint)
-              const cB = Math.round(lerp(232, 255, w) - 18 * rainTint)
-              const eR = Math.round(lerp(188, 238, w) - 8 * rainTint)
-              const eG = Math.round(lerp(201, 244, w) - 10 * rainTint)
-              const eB = Math.round(lerp(220, 250, w) - 14 * rainTint)
+              const stormCloud = cloud.storminess > 0.72
+              const stormAmt = stormCloud
+                ? ((cloud.storminess - 0.72) / 0.28) * (1 - tierFrac * 0.55)
+                : 0
+              const cR = Math.round(lerp(202, 255, w) - 58 * stormAmt)
+              const cG = Math.round(lerp(214, 255, w) - 62 * stormAmt)
+              const cB = Math.round(lerp(232, 255, w) - 70 * stormAmt)
+              const eR = Math.round(lerp(188, 238, w) - 38 * stormAmt)
+              const eG = Math.round(lerp(201, 244, w) - 42 * stormAmt)
+              const eB = Math.round(lerp(220, 250, w) - 48 * stormAmt)
 
               // Highlight shifted upward so each blob looks lit from above
               const wg = ctx.createRadialGradient(puffX, puffY - puffR * 0.18, 0, puffX, puffY, puffR)
@@ -443,23 +437,7 @@ export default function CelestialBackground() {
             }
           }
 
-          // Occasional rain shafts under darker clouds (no ground shadow ovals).
-          if (cloud.storminess > 0.68 && z > 0.22 && z < 0.90) {
-            const rainAlpha = bellOp * (cloud.storminess - 0.68) * 1.8
-            const streaks = 6 + Math.floor(cloudWidth * 5)
-            ctx.strokeStyle = `rgba(120,146,182,${Math.min(0.26, rainAlpha).toFixed(3)})`
-            ctx.lineWidth = Math.max(0.8, cloudR * 0.006)
-            for (let r = 0; r < streaks; r++) {
-              const frac = streaks > 1 ? r / (streaks - 1) - 0.5 : 0
-              const dropX = sx + tx * frac * cloudR * 1.65 * cloudWidth
-              const dropY = sy + cloudR * (0.22 + Math.random() * 0.22)
-              const len = cloudR * (0.16 + 0.18 * Math.random())
-              ctx.beginPath()
-              ctx.moveTo(dropX, dropY)
-              ctx.lineTo(dropX - tx * len * 0.24, dropY + len)
-              ctx.stroke()
-            }
-          }
+          // Rain shafts intentionally disabled.
         }
       }
 
